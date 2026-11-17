@@ -1,0 +1,56 @@
+# Dependencias congeladas y reproducibles para el sistema geoespacial y de optimización (Python 3.11+)
+# Para instalar en cualquier equipo:
+#   python -m venv .venv
+#   .venv\Scripts\activate   (Windows) o source .venv/bin/activate (Linux/Mac)
+#   pip install -r requirements.txt
+#   pip install -e .
+
+annotated-types==0.8.0
+ast-serialize==0.13.1
+certifi==2026.10.19
+cffi==2.1.1
+charset-normalizer==3.5.2
+colorama==0.4.6
+coverage==7.16.2
+deap==1.4.4
+duckdb==2.0.0
+geopandas==1.1.4
+idna==3.20
+iniconfig==2.3.1
+jinja2==3.1.6
+librt==0.16.0
+lxml==6.1.3
+markupsafe==3.0.4
+moocore==0.3.2
+mypy==2.4.0
+mypy-extensions==1.1.0
+networkx==3.6.1
+numpy==1.26.4
+osmnx==2.1.1
+packaging==26.3
+pandas==3.0.6
+pathspec==1.1.1
+platformdirs==4.13.5
+pluggy==1.7.0
+pyarrow==17.0.0
+pycparser==3.11
+pydantic==2.14.1
+pydantic-core==2.50.1
+pydantic-settings==2.16.1
+pygments==2.21.0
+pyogrio==0.13.0
+pyproj==3.7.2
+pytest==9.1.1
+pytest-cov==7.1.0
+python-dateutil==3.0.0
+python-dotenv==1.2.4
+pyyaml==6.0.3
+requests==2.34.2
+ruff==0.17.1
+scipy==1.17.1
+shapely==2.2.0
+six==1.17.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.5
+urllib3==2.8.0

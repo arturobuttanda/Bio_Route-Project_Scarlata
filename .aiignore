@@ -1,0 +1,57 @@
+# AI Context Exclusion Rules (.aiignore)
+# Previene la indexación y saturación de tokens en Coding Agents / LLMs
+
+# Data directories (STRICT: NEVER INDEX RAW OR PROCESSED SPATIAL DATA)
+data/
+data/**
+*.geojson
+*.gpkg
+*.geoparquet
+*.parquet
+*.graphml
+*.osm
+*.pbf
+*.shp
+*.shx
+*.dbf
+*.cpg
+*.prj
+*.csv
+*.zip
+*.tar.gz
+
+# Database dumps and sqlite
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+
+# Virtual environments & packages
+.venv/
+venv/
+env/
+site-packages/
+
+# Python cache & compiled binaries
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dll
+*.pyd
+
+# Tests & Coverage heavy reports
+.pytest_cache/
+.coverage
+htmlcov/
+*.lprof
+
+# Docker & local secrets
+.env
+docker/data/
+
+# IDE / System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

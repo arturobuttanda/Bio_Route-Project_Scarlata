@@ -1,0 +1,28 @@
+# Parámetros Geoespaciales y de Movilidad - Alcaldía Benito Juárez (CDMX)
+
+spatial:
+  crs_geographic: "EPSG:4326"       # WGS84 - Ingesta OSM y exportación Web
+  crs_projected: "EPSG:32614"        # UTM Zona 14N - Mediciones métricas e impedancias
+  boundary:
+    name: "Benito Juárez"
+    state: "Ciudad de México"
+    cve_geo: "09014"
+    buffer_meters: 500               # Buffer para evitar cortes de borde en avenidas perimetrales
+
+speeds:
+  default_primary_kph: 50.0          # Ejes viales y avenidas primarias
+  default_secondary_kph: 40.0        # Avenidas secundarias
+  default_residential_kph: 30.0      # Calles locales
+  transit_contraflow_kph: 35.0       # Carriles confinados en contraflujo (trolebús/bus)
+  congested_factor: 0.33             # Factor de penalización por congestión severa (velocidad / 3)
+
+demand:
+  walkable_radius_meters: 400.0      # Cobertura de parada o estación
+  transit_transfer_penalty_seconds: 300.0  # Penalización por transbordo intermodal (5 min)
+
+optimization:
+  default_seed: 42
+  population_size: 50
+  generations: 60
+  crossover_prob: 0.8
+  mutation_prob: 0.2
