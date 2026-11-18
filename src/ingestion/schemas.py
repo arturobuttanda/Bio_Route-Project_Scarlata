@@ -145,3 +145,15 @@ class AccidentAnalyticsSchema(BaseModel):
     clusters: list[AccidentClusterSchema] = Field(default_factory=list)
     hourly_counts: list[int] = Field(default_factory=lambda: [0] * 24)
     band_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class TrafficSummarySchema(BaseModel):
+    """Resumen compacto de congestión y nivel de servicio vial en Benito Juárez."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    total_edges_evaluated: int = 0
+    infovial_records_used: int = 0
+    mean_factor_by_band: dict[str, float] = Field(default_factory=dict)
+    los_distribution_pm: dict[str, int] = Field(default_factory=dict)
+    sources: list[str] = Field(default_factory=list)

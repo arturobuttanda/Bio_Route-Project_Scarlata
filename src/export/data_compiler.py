@@ -20,6 +20,7 @@ from src.graph.multimodal import build_multimodal_layer
 from src.ingestion.accident_analytics import classify_time_band
 from src.ingestion.accidents import enrich_graph_with_accident_risk
 from src.ingestion.boundary import get_benito_juarez_polygon
+from src.ingestion.traffic import enrich_graph_with_traffic
 from src.simulation.scenarios import get_all_scenarios
 
 
@@ -48,9 +49,10 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
     if output_json_path is None:
         output_json_path = settings.outputs_dir / "spa_payload.json"
 
-    # 1. Cargar grafo LSCC y enriquecer con riesgo de accidentes si aplica
+    # 1. Cargar grafo LSCC y enriquecer con riesgo de accidentes y tráfico vial
     G = load_road_network(ensure_weights=False)
     G, edges_with_accidents = enrich_graph_with_accident_risk(G)
+    G, _ = enrich_graph_with_traffic(G)
 
     node_coords: dict[int, tuple[float, float]] = {
         n: (float(d.get("y", 0.0)), float(d.get("x", 0.0))) for n, d in G.nodes(data=True)
@@ -184,8 +186,14 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
         [round(node_coords[nid][0], 5), round(node_coords[nid][1], 5)] for nid in ordered_nodes
     ]
     rg_edges = []
+    traffic_edges: list[dict[str, Any]] = []
+    seen_traffic: set[tuple[int, int]] = set()
     for u, v, d in G.edges(data=True):
         su, sv = str(u), str(v)
+        f_am = float(d.get("traffic_am", 1.2))
+        f_dia = float(d.get("traffic_dia", 1.1))
+        f_pm = float(d.get("traffic_pm", 1.3))
+        f_noche = float(d.get("traffic_noche", 1.0))
         if su in node_to_idx and sv in node_to_idx:
             rg_edges.append(
                 [
@@ -196,8 +204,28 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
                     round(float(d.get("length_m", 10.0)), 1),
                     round(float(d.get("risk_score", 0.0)), 2),
                     0,  # 0 = street
+                    f_am,
+                    f_dia,
+                    f_pm,
+                    f_noche,
                 ]
             )
+            hw = str(d.get("highway", "")).lower()
+            pair = (min(int(u), int(v)), max(int(u), int(v)))
+            if pair not in seen_traffic and any(
+                k in hw for k in ("motorway", "trunk", "primary", "secondary")
+            ):
+                seen_traffic.add(pair)
+                traffic_edges.append(
+                    {
+                        "name": str(d.get("name", "Vialidad")),
+                        "factors": [f_am, f_dia, f_pm, f_noche],
+                        "coords": [
+                            [round(node_coords[u][0], 5), round(node_coords[u][1], 5)],
+                            [round(node_coords[v][0], 5), round(node_coords[v][1], 5)],
+                        ],
+                    }
+                )
 
     # Añadir nodos y aristas multimodales (Metro=1, Metrobús=2, RTP=3, Transfer=4)
     mm_layer = build_multimodal_layer(G)
@@ -222,6 +250,10 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
                     float(te["length_m"]),
                     0.0,
                     mode_to_code.get(str(te["mode"]), 4),
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
                 ]
             )
 
@@ -351,6 +383,7 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
     poi_sum = _read_json_if_exists(settings.processed_data_dir / "pois_summary.json")
     qa_sum = _read_json_if_exists(settings.processed_data_dir / "qa_report.json")
     acc_analytics = _read_json_if_exists(settings.processed_data_dir / "accident_analytics.json")
+    traffic_sum = _read_json_if_exists(settings.processed_data_dir / "traffic_summary.json")
 
     kpis = {
         "network": {
@@ -389,12 +422,14 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
         "transit": trn_sum,
         "pois": poi_sum,
         "qa": qa_sum,
+        "traffic": traffic_sum,
     }
 
     payload = {
         "boundary_latlngs": ext_coords,
         "mask_geojson": mask_geojson,
         "road_network": road_network_layers,
+        "traffic_edges": traffic_edges,
         "pois": pois_data,
         "transit_lines": transit_lines_data,
         "transit_stops": transit_stops_data,

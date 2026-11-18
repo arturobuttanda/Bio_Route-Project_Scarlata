@@ -1,10 +1,10 @@
 # SYSTEM CONTEXT & STATE (Live Document)
 
 ## Current Status
-- **Active Phase:** Fase 9 Completada — Consolidación Científica, Ruteo Multimodal y Limpieza Visual.
+- **Active Phase:** Fase 10 Completada — Tráfico Vial INFOVIAL, Ruteador Tipo Google Maps y Simulador de Estrés RTP.
 - **Completed Deliverables:**
-  - Benchmark Científico Justo (`optimization/pipeline.py`, `simulation/pipeline.py`): Comparativa exacta de A*, NSGA-II y C5 sobre los mismos corredores estratégicos.
-  - Ruteo Multimodal Real (`src/graph/multimodal.py`): Conexión de Metro (55 km/h), Metrobús (30 km/h) y RTP (22 km/h) al grafo LSCC, operativo en el ruteador A* del navegador (`⚖️ Rápida vs Segura` y `🚇 Multimodal`).
-  - Limpieza Visual (`MarkerCluster`) + Modal Ejecutivo **"📊 Hallazgos"** en `src/export/templates/dashboard.html`.
-  - Analítica de Accidentes 24m (`5,389` hechos SSC, `93` clusters DBSCAN, perfil 24h) + `456` POIs reales + `9` capas OGC en `benito_juarez_mobility.gpkg`.
+  - Tráfico Vial (`src/ingestion/traffic.py`): 226,916 registros INFOVIAL + calibración horaria `AM/Día/PM/Noche` y Nivel de Servicio (LOS) en 11,062 aristas.
+  - Ruteador Tipo Google Maps (`src/export/templates/dashboard.html`): Marcado A→B con clic en mapa (arrastrable), modos Automóvil y Transporte Público, y 4 rutas simultáneas (Rápida, Evitando Riesgos, Eco, Balanceada NSGA-II).
+  - Simulador de Estrés RTP: Estrés configurable (`1.8x`, `2.8x`, `4.0x`) sobre cualquier ruta RTP con Desvío Resiliente y Rediseño Completo.
+  - Basemaps Esri ArcGIS (`Nocturno`, `Satélite`, `Calles`) + respaldo vectorial LSCC.
 - **Architectural Rules:** Blind Data Ingestion strictly enforced. Dual CRS: EPSG:32614 (metric) / EPSG:4326 (web).

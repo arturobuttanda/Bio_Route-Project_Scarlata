@@ -15,8 +15,10 @@ from src.ingestion.schemas import (
     AccidentsSummarySchema,
     POISummarySchema,
     QAReportSchema,
+    TrafficSummarySchema,
     TransitSummarySchema,
 )
+from src.ingestion.traffic import enrich_graph_with_traffic
 
 
 def test_ingestion_schemas_validation():
@@ -166,3 +168,19 @@ def test_multimodal_layer_builder():
     assert len(mm["transit_nodes"]) == 2
     # 2 nodos * 2 aristas transfer + 2 aristas troncales (bidireccional) = 6 aristas
     assert len(mm["transit_edges"]) >= 4
+
+
+def test_traffic_enrichment(tmp_path):
+    """Verifica la asignación de factores de tráfico y LOS por franja horaria."""
+    G = extract_lscc(
+        project_node_coordinates(assign_edge_weights(generate_synthetic_benito_juarez_grid()))
+    )
+    G_tr, summary = enrich_graph_with_traffic(
+        G, output_summary=tmp_path / "traffic_summary.json", use_infovial=False
+    )
+    assert isinstance(summary, TrafficSummarySchema)
+    assert summary.total_edges_evaluated == G_tr.number_of_edges()
+    assert summary.mean_factor_by_band["pm"] >= summary.mean_factor_by_band["noche"]
+    edge_d = next(iter(G_tr.edges(data=True)))[2]
+    assert "traffic_pm" in edge_d
+    assert edge_d["los_pm"] in {"A", "B", "C", "D", "E", "F"}

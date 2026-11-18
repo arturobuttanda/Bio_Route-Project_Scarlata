@@ -199,18 +199,18 @@
         /* Tabs */
         .tabs {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 4px;
-            padding: 8px 12px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 3px;
+            padding: 8px 10px;
             border-bottom: 1px solid var(--border-hair);
         }
         .tab-btn {
             background: transparent;
             border: 1px solid transparent;
             color: var(--text-muted);
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 500;
-            padding: 7px 4px;
+            padding: 7px 2px;
             border-radius: 7px;
             cursor: pointer;
             transition: all 0.2s var(--ease-out);
@@ -586,7 +586,8 @@
             <button class="tab-btn active" onclick="switchTab('layers', this)">Capas</button>
             <button class="tab-btn" onclick="switchTab('pareto', this)">Pareto</button>
             <button class="tab-btn" onclick="switchTab('router', this)">Ruteo</button>
-            <button class="tab-btn" onclick="switchTab('c5', this)">C5 / Riesgo</button>
+            <button class="tab-btn" onclick="switchTab('c5', this)">C5</button>
+            <button class="tab-btn" onclick="switchTab('rtpstress', this)">Estrés RTP</button>
         </div>
 
         <div class="tab-body">
@@ -643,7 +644,11 @@
                     <span class="layer-right"><span class="count-badge" id="cnt-stations">0</span><input type="checkbox" class="toggle" onchange="toggleGroup('stations', this.checked)"></span>
                 </label>
 
-                <div class="section-title">Siniestralidad y Optimización</div>
+                <div class="section-title">Siniestralidad, Tráfico y Optimización</div>
+                <label class="layer-row">
+                    <span class="layer-left"><span class="line-swatch" style="background:linear-gradient(90deg,#22c55e,#eab308,#ef4444);"></span>Tráfico Vial (Nivel de Servicio)</span>
+                    <span class="layer-right"><span class="count-badge" id="cnt-traffic">0</span><input type="checkbox" class="toggle" id="chk-traffic" onchange="toggleGroup('traffic', this.checked)"></span>
+                </label>
                 <label class="layer-row">
                     <span class="layer-left"><span class="dot-swatch" style="background:#ef4444;box-shadow:0 0 6px #ef4444;"></span>Clusters Críticos (DBSCAN)</span>
                     <span class="layer-right"><span class="count-badge" id="cnt-dbscan">0</span><input type="checkbox" class="toggle" onchange="toggleGroup('dbscan', this.checked)"></span>
@@ -689,25 +694,52 @@
                 </div>
             </div>
 
-            <!-- TAB 3: RUTEO -->
+            <!-- TAB 3: RUTEO TIPO GOOGLE MAPS -->
             <div class="tab-pane" id="tab-router">
-                <div class="section-title">Motor A* Calle por Calle &amp; Multimodal</div>
-                <div class="btn-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:10px;">
-                    <button class="pill-btn active" id="mode-compare" onclick="setRouteMode('compare')">⚖️ Rápida vs Segura</button>
-                    <button class="pill-btn" id="mode-multi" onclick="setRouteMode('multi')">🚇 Multimodal</button>
-                    <button class="pill-btn" id="mode-fast" onclick="setRouteMode('fast')">⚡ Solo Rápida</button>
-                    <button class="pill-btn" id="mode-safe" onclick="setRouteMode('safe')">🛡️ Solo Segura</button>
+                <div class="section-title">Modo y Franja Horaria de Tráfico</div>
+                <div class="btn-grid" style="margin-bottom:8px;">
+                    <button class="pill-btn active" id="tmode-car" onclick="setTransportMode('car')">🚗 Automóvil</button>
+                    <button class="pill-btn" id="tmode-transit" onclick="setTransportMode('transit')">🚇 Transp. Público</button>
                 </div>
-                <div class="section-title">Corredor Origen - Destino</div>
+                <div class="btn-grid" style="grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:10px;">
+                    <button class="pill-btn" onclick="setTrafficBand('am', this)">AM</button>
+                    <button class="pill-btn" onclick="setTrafficBand('dia', this)">Día</button>
+                    <button class="pill-btn active" onclick="setTrafficBand('pm', this)">PM</button>
+                    <button class="pill-btn" onclick="setTrafficBand('noche', this)">Noche</button>
+                </div>
+
+                <div class="section-title">Marcar Inicio (A) y Llegada (B)</div>
                 <div class="control-box">
-                    <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Origen</label>
+                    <button class="primary-btn" id="btn-pick-map" onclick="toggleMapPickMode()" style="margin-bottom:8px;">📍 Marcar A → B en Mapa</button>
+                    <div id="pick-status" style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px;">O selecciona POIs de la lista (marcadores arrastrables):</div>
                     <select id="od-origin"></select>
-                    <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Destino</label>
                     <select id="od-dest"></select>
-                    <button class="primary-btn" onclick="traceCustomRoute()">Calcular Ruta Real A*</button>
-                    <button class="secondary-btn" onclick="clearCustomRoute()">Limpiar</button>
+                    <div class="btn-grid">
+                        <button class="primary-btn" onclick="traceCustomRouteFromSelect()">Calcular Rutas</button>
+                        <button class="secondary-btn" style="margin-top:4px;" onclick="clearCustomRoute()">Limpiar</button>
+                    </div>
                 </div>
-                <div id="custom-route-info" class="control-box" style="display:none;font-size:11.5px;line-height:1.6;"></div>
+
+                <div class="section-title">Capas de Ruta (Comparativa)</div>
+                <div class="control-box" style="padding:8px 10px;">
+                    <label class="layer-row" style="margin-bottom:4px;padding:5px 8px;">
+                        <span class="layer-left"><span class="line-swatch" style="background:#00f2fe;"></span>⚡ Más Rápida</span>
+                        <input type="checkbox" class="toggle" checked onchange="toggleRouteOption('fast', this.checked)">
+                    </label>
+                    <label class="layer-row" style="margin-bottom:4px;padding:5px 8px;">
+                        <span class="layer-left"><span class="line-swatch" style="background:#22c55e;"></span>🛡️ Evitando Riesgos</span>
+                        <input type="checkbox" class="toggle" checked onchange="toggleRouteOption('safe', this.checked)">
+                    </label>
+                    <label class="layer-row" style="margin-bottom:4px;padding:5px 8px;">
+                        <span class="layer-left"><span class="line-swatch" style="background:#c084fc;"></span>🌿 Eco (Menor Dist.)</span>
+                        <input type="checkbox" class="toggle" checked onchange="toggleRouteOption('eco', this.checked)">
+                    </label>
+                    <label class="layer-row" style="margin-bottom:0;padding:5px 8px;">
+                        <span class="layer-left"><span class="line-swatch" style="background:#f59e0b;"></span>⚖️ Balanceada NSGA-II</span>
+                        <input type="checkbox" class="toggle" checked onchange="toggleRouteOption('balanced', this.checked)">
+                    </label>
+                </div>
+                <div id="custom-route-info" class="control-box" style="display:none;font-size:11px;line-height:1.55;"></div>
             </div>
 
             <!-- TAB 4: C5 / RIESGO -->
@@ -737,6 +769,24 @@
 
                 <div class="section-title">Hotspots de Siniestralidad (24m)</div>
                 <div id="hotspots-list"></div>
+            </div>
+
+            <!-- TAB 5: ESTRÉS DE RUTAS RTP -->
+            <div class="tab-pane" id="tab-rtpstress">
+                <div class="section-title">Someter Ruta RTP a Estrés</div>
+                <div class="control-box">
+                    <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Ruta RTP en Benito Juárez</label>
+                    <select id="rtp-stress-select"></select>
+                    <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Severidad de Estrés / Congestión</label>
+                    <div class="btn-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:10px;">
+                        <button class="pill-btn" onclick="setRtpStressLevel(1.8, this)">1.8x</button>
+                        <button class="pill-btn active" onclick="setRtpStressLevel(2.8, this)">2.8x</button>
+                        <button class="pill-btn" onclick="setRtpStressLevel(4.0, this)">4.0x + Bloqueo</button>
+                    </div>
+                    <button class="primary-btn" onclick="runRtpStressSimulation()">Simular Estrés y Proponer</button>
+                    <button class="secondary-btn" onclick="clearRtpStress()">Limpiar Simulación</button>
+                </div>
+                <div id="rtp-stress-info" class="control-box" style="display:none;font-size:11px;line-height:1.55;"></div>
             </div>
         </div>
 
@@ -791,18 +841,29 @@
 
         const canvasRenderer = L.canvas({ padding: 0.5 });
 
-        // 1. Basemaps Cartográficos (Nocturno CARTO por defecto para contexto urbano completo)
+        // 1. Basemaps Cartográficos vía Esri ArcGIS Online (provenientes del mismo CDN verificado)
+        const darkGroup = L.layerGroup([
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, opacity: 0.75 })
+        ]);
         const tileLayers = {
-            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }),
+            dark: darkGroup,
             sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
-            street: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 })
+            street: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
         };
         let activeTileLayer = tileLayers.dark.addTo(map);
+
+        // Respaldo vectorial sutil de la red vial LSCC (visible si algún tile tarda)
+        const vectorRoadFallback = L.layerGroup().addTo(map);
+        const rn = SPADATA.road_network || {};
+        (rn.primary || []).forEach(seg => {
+            L.polyline(seg, { renderer: canvasRenderer, color: '#64748b', weight: 0.9, opacity: 0.35, interactive: false }).addTo(vectorRoadFallback);
+        });
 
         function setBasemap(mode, btn) {
             if (activeTileLayer) { map.removeLayer(activeTileLayer); }
             activeTileLayer = tileLayers[mode].addTo(map);
-            activeTileLayer.bringToBack();
+            if (activeTileLayer.bringToBack) activeTileLayer.bringToBack();
             btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         }
@@ -834,12 +895,14 @@
             school: makeCluster(),
             shopping_mall: makeCluster(),
             stations: L.layerGroup(),
+            traffic: L.layerGroup(),
             dbscan: L.layerGroup(),
             riskEdges: L.layerGroup(),
             pareto: L.layerGroup().addTo(map),
             baseline: L.layerGroup(),
             c5: L.layerGroup().addTo(map),
-            customRoute: L.layerGroup().addTo(map)
+            customRoute: L.layerGroup().addTo(map),
+            rtpStress: L.layerGroup().addTo(map)
         };
 
         // 4. Poblar KPIs Dinámicos
@@ -1061,6 +1124,37 @@
                 .addTo(groups.riskEdges);
         });
 
+        // 7B. Capa de Tráfico Vial (Nivel de Servicio por Franja Horaria)
+        const trafficEdges = SPADATA.traffic_edges || [];
+        document.getElementById('cnt-traffic').textContent = trafficEdges.length;
+        let currentTrafficBand = 'pm';
+        const bandIdxMap = { am: 0, dia: 1, pm: 2, noche: 3 };
+
+        function renderTrafficLayer() {
+            groups.traffic.clearLayers();
+            const bIdx = bandIdxMap[currentTrafficBand] ?? 2;
+            trafficEdges.forEach(te => {
+                const f = te.factors[bIdx] || 1.2;
+                const color = f <= 1.25 ? '#22c55e' : (f <= 1.55 ? '#eab308' : (f <= 1.95 ? '#f97316' : '#ef4444'));
+                L.polyline(te.coords, {
+                    renderer: canvasRenderer,
+                    color,
+                    weight: f > 1.55 ? 3.2 : 2.0,
+                    opacity: 0.78
+                }).bindTooltip(`<b>🚦 ${te.name}</b><br>Factor tráfico (${currentTrafficBand.toUpperCase()}): <b>${f}x</b>`, { sticky: true, className: 'gis-tip' })
+                  .addTo(groups.traffic);
+            });
+        }
+        renderTrafficLayer();
+
+        function setTrafficBand(band, btn) {
+            currentTrafficBand = band;
+            btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderTrafficLayer();
+            if (activeRouteEndpoints) traceCustomRouteAtIndices(activeRouteEndpoints.sIdx, activeRouteEndpoints.gIdx, activeRouteEndpoints.oName, activeRouteEndpoints.dName);
+        }
+
         const hotspotsDiv = document.getElementById('hotspots-list');
         (k.accidents?.top_hotspots || []).forEach(h => {
             const el = document.createElement('div');
@@ -1150,16 +1244,26 @@
             });
         }
 
-        // 10. Ruteador Real Calle por Calle & Multimodal A* en Navegador
+        // 10. Ruteador Interactivo Tipo Google Maps (Automóvil / Transporte Público + 4 Capas)
         const rg = SPADATA.routing_graph || { node_map: {}, node_labels: {}, nodes: [], edges: [] };
+        const roadNodeCount = Object.keys(rg.node_map || {}).length;
         const adjList = Array.from({ length: rg.nodes.length }, () => []);
         rg.edges.forEach(e => { adjList[e[0]].push(e); });
 
-        function runAStar(startIdx, goalIdx, weightMode) {
+        function findNearestRoadNode(lat, lon) {
+            let bestIdx = 0, bestDist = Infinity;
+            for (let i = 0; i < roadNodeCount; i++) {
+                const d = (rg.nodes[i][0] - lat) ** 2 + (rg.nodes[i][1] - lon) ** 2;
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            return bestIdx;
+        }
+
+        function runAStar(startIdx, goalIdx, optType, tMode, blockedSet) {
             const n = rg.nodes.length;
             if (startIdx == null || goalIdx == null || startIdx === goalIdx) return null;
-            const allowTransit = weightMode === 'multi';
-            const useSafe = weightMode === 'safe';
+            const allowTransit = tMode === 'transit';
+            const bIdx = 7 + (bandIdxMap[currentTrafficBand] ?? 2);
             const gScore = new Float64Array(n).fill(Infinity);
             const cameFrom = new Int32Array(n).fill(-1);
             const edgeUsed = new Array(n).fill(null);
@@ -1167,7 +1271,8 @@
             const heur = (idx) => {
                 const dLat = (rg.nodes[idx][0] - gLat) * 111320;
                 const dLon = (rg.nodes[idx][1] - gLon) * 104800;
-                return Math.hypot(dLat, dLon) / 22.2;
+                const dm = Math.hypot(dLat, dLon);
+                return optType === 'eco' ? dm : dm / 22.2;
             };
 
             const heap = [[heur(startIdx), startIdx]];
@@ -1210,7 +1315,10 @@
                     while (curr !== -1) {
                         const ed = edgeUsed[curr];
                         if (ed) {
-                            totalTime += ed[2]; totalLen += ed[4]; totalRisk += ed[5];
+                            const tf = (ed[6] === 0 && !allowTransit) ? (ed[bIdx] || 1.0) : 1.0;
+                            totalTime += ed[2] * tf;
+                            totalLen += ed[4];
+                            totalRisk += ed[5];
                             segments.push({ coords: [rg.nodes[ed[0]], rg.nodes[ed[1]]], mode: ed[6] || 0 });
                             const lbl = (rg.node_labels || {})[String(ed[1])];
                             if (lbl && (ed[6] === 1 || ed[6] === 2 || ed[6] === 3)) transitStopsUsed.push(lbl);
@@ -1228,7 +1336,13 @@
                     const mCode = ed[6] || 0;
                     if (!allowTransit && mCode !== 0) continue;
                     const v = ed[1];
-                    const w = useSafe ? ed[3] : ed[2];
+                    const tf = mCode === 0 ? (ed[bIdx] || 1.0) : 1.0;
+                    const stressMult = (blockedSet && blockedSet.has(v)) ? rtpStressMultiplier : 1.0;
+                    let w = ed[2] * tf * stressMult;
+                    if (optType === 'safe') w = ed[3] * tf * stressMult;
+                    else if (optType === 'eco') w = ed[4] * stressMult;
+                    else if (optType === 'balanced') w = (ed[2] * tf * 0.65 + ed[3] * 0.35 + ed[5] * 8.0) * stressMult;
+
                     const tent = gScore[u] + w;
                     if (tent < gScore[v]) {
                         cameFrom[v] = u;
@@ -1241,90 +1355,231 @@
             return null;
         }
 
-        let routeMode = 'compare';
-        function setRouteMode(m) {
-            routeMode = m;
-            ['compare', 'multi', 'fast', 'safe'].forEach(id => {
-                document.getElementById('mode-' + id).classList.toggle('active', m === id);
-            });
+        let transportMode = 'car';
+        function setTransportMode(m) {
+            transportMode = m;
+            document.getElementById('tmode-car').classList.toggle('active', m === 'car');
+            document.getElementById('tmode-transit').classList.toggle('active', m === 'transit');
+            if (activeRouteEndpoints) traceCustomRouteAtIndices(activeRouteEndpoints.sIdx, activeRouteEndpoints.gIdx, activeRouteEndpoints.oName, activeRouteEndpoints.dName);
         }
 
-        function makeRadarIcon(color) {
-            return L.divIcon({
-                className: '',
-                iconSize: [14, 14],
-                iconAnchor: [7, 7],
-                html: `<div class="radar-pin"><span class="ring" style="background:${color};"></span><span class="core" style="background:${color};"></span></div>`
-            });
+        const routeOptionEnabled = { fast: true, safe: true, eco: true, balanced: true };
+        const routeOptionGroups = {
+            fast: L.layerGroup().addTo(groups.customRoute),
+            safe: L.layerGroup().addTo(groups.customRoute),
+            eco: L.layerGroup().addTo(groups.customRoute),
+            balanced: L.layerGroup().addTo(groups.customRoute)
+        };
+        function toggleRouteOption(key, show) {
+            routeOptionEnabled[key] = show;
+            if (show) groups.customRoute.addLayer(routeOptionGroups[key]);
+            else groups.customRoute.removeLayer(routeOptionGroups[key]);
         }
 
-        function traceCustomRoute() {
-            groups.customRoute.clearLayers();
+        let pickStep = 0; // 0 = off, 1 = waiting A, 2 = waiting B
+        let pickedA = null, pickedB = null;
+        let markerA = null, markerB = null;
+        let activeRouteEndpoints = null;
+
+        function toggleMapPickMode() {
+            const btn = document.getElementById('btn-pick-map');
+            const st = document.getElementById('pick-status');
+            if (pickStep === 0) {
+                pickStep = 1;
+                btn.textContent = '🟡 Haz clic para Punto A (Inicio)';
+                btn.style.background = '#f59e0b';
+                st.textContent = 'Haz clic en cualquier calle del mapa para fijar el inicio (A).';
+                map.getContainer().style.cursor = 'crosshair';
+            } else {
+                pickStep = 0;
+                btn.textContent = '📍 Marcar A → B en Mapa';
+                btn.style.background = '';
+                map.getContainer().style.cursor = '';
+            }
+        }
+
+        map.on('click', (e) => {
+            if (pickStep === 0) return;
+            const { lat, lng } = e.latlng;
+            if (pickStep === 1) {
+                pickedA = [lat, lng];
+                pickStep = 2;
+                document.getElementById('btn-pick-map').textContent = '🔴 Haz clic para Punto B (Llegada)';
+                document.getElementById('pick-status').textContent = 'Ahora haz clic para fijar la llegada (B).';
+                if (markerA) groups.customRoute.removeLayer(markerA);
+                markerA = L.marker([lat, lng], { draggable: true }).bindTooltip('Inicio (A) · Arrastrable', { className: 'gis-tip' }).addTo(groups.customRoute);
+                markerA.on('dragend', () => {
+                    const p = markerA.getLatLng();
+                    pickedA = [p.lat, p.lng];
+                    if (pickedB) traceFromPickedCoords();
+                });
+            } else if (pickStep === 2) {
+                pickedB = [lat, lng];
+                pickStep = 0;
+                document.getElementById('btn-pick-map').textContent = '📍 Marcar A → B en Mapa';
+                document.getElementById('btn-pick-map').style.background = '';
+                document.getElementById('pick-status').textContent = 'Marcadores A y B fijados (arrástralos para recalcular).';
+                map.getContainer().style.cursor = '';
+                if (markerB) groups.customRoute.removeLayer(markerB);
+                markerB = L.marker([lat, lng], { draggable: true }).bindTooltip('Llegada (B) · Arrastrable', { className: 'gis-tip' }).addTo(groups.customRoute);
+                markerB.on('dragend', () => {
+                    const p = markerB.getLatLng();
+                    pickedB = [p.lat, p.lng];
+                    if (pickedA) traceFromPickedCoords();
+                });
+                traceFromPickedCoords();
+            }
+        });
+
+        function traceFromPickedCoords() {
+            if (!pickedA || !pickedB) return;
+            const sIdx = findNearestRoadNode(pickedA[0], pickedA[1]);
+            const gIdx = findNearestRoadNode(pickedB[0], pickedB[1]);
+            traceCustomRouteAtIndices(sIdx, gIdx, 'Punto A (Mapa)', 'Punto B (Mapa)');
+        }
+
+        function traceCustomRouteFromSelect() {
             const oId = originSel.value, dId = destSel.value;
             const oPoi = SPADATA.pois.find(p => p.id === oId);
             const dPoi = SPADATA.pois.find(p => p.id === dId);
             if (!oPoi || !dPoi) return;
-
             const sIdx = rg.node_map[String(oPoi.node)];
             const gIdx = rg.node_map[String(dPoi.node)];
+            if (markerA) { groups.customRoute.removeLayer(markerA); markerA = null; }
+            if (markerB) { groups.customRoute.removeLayer(markerB); markerB = null; }
+            traceCustomRouteAtIndices(sIdx, gIdx, oPoi.name, dPoi.name);
+        }
+
+        function traceCustomRouteAtIndices(sIdx, gIdx, oName, dName) {
+            activeRouteEndpoints = { sIdx, gIdx, oName, dName };
+            Object.values(routeOptionGroups).forEach(g => g.clearLayers());
+            const styles = {
+                fast:     { color: '#00f2fe', weight: 4.5, label: '⚡ Más Rápida' },
+                safe:     { color: '#22c55e', weight: 4.0, label: '🛡️ Evitando Riesgos' },
+                eco:      { color: '#c084fc', weight: 3.5, label: '🌿 Eco (Menor Dist.)' },
+                balanced: { color: '#f59e0b', weight: 3.8, label: '⚖️ Balanceada NSGA-II' }
+            };
+            const allCoords = [];
+            const summaryLines = [`<div style="margin-bottom:5px;"><b>${oName}</b> → <b>${dName}</b> <small style="color:var(--text-muted)">(${transportMode === 'transit' ? 'Transp. Público' : 'Auto · ' + currentTrafficBand.toUpperCase()})</small></div>`];
+
+            ['fast', 'safe', 'eco', 'balanced'].forEach(opt => {
+                const res = runAStar(sIdx, gIdx, opt, transportMode, null);
+                if (!res) return;
+                const st = styles[opt];
+                if (transportMode === 'transit' && opt === 'fast') {
+                    const mColors = { 0: '#94a3b8', 1: '#f97316', 2: '#ef4444', 3: '#22c55e', 4: '#ffffff' };
+                    res.segments.forEach(seg => {
+                        L.polyline(seg.coords, { color: mColors[seg.mode] || st.color, weight: seg.mode === 0 ? 3.5 : 5.5, dashArray: seg.mode === 4 ? '4,4' : null })
+                            .addTo(routeOptionGroups[opt]);
+                    });
+                } else {
+                    L.polyline(res.coords, { color: st.color, weight: st.weight, opacity: 0.88, className: opt === 'fast' ? 'kinetic-route' : '' })
+                        .bindTooltip(`${st.label}: ${res.time_s}s · ${res.length_m}m · Riesgo ${res.risk}`, { sticky: true, className: 'gis-tip' })
+                        .addTo(routeOptionGroups[opt]);
+                }
+                allCoords.push(...res.coords);
+                summaryLines.push(`<div style="color:${st.color};">${st.label}: <b>${res.time_s}s</b> · ${res.length_m}m · Riesgo <b>${res.risk}</b></div>`);
+            });
+
+            if (allCoords.length >= 2) map.flyToBounds(L.latLngBounds(allCoords).pad(0.22), { duration: 0.8 });
             const box = document.getElementById('custom-route-info');
             box.style.display = 'block';
+            box.innerHTML = summaryLines.join('');
+        }
 
-            if (routeMode === 'multi') {
-                const multiRes = runAStar(sIdx, gIdx, 'multi');
-                if (!multiRes) { box.innerHTML = 'No se encontró ruta multimodal.'; return; }
-                const modeColors = { 0: '#94a3b8', 1: '#f97316', 2: '#ef4444', 3: '#22c55e', 4: '#ffffff' };
-                const modeNames = { 0: 'Calle/Caminata', 1: 'Metro', 2: 'Metrobús', 3: 'RTP', 4: 'Abordaje/Transbordo' };
-                multiRes.segments.forEach(seg => {
-                    L.polyline(seg.coords, {
-                        color: modeColors[seg.mode] || '#00f2fe',
-                        weight: seg.mode === 0 || seg.mode === 4 ? 3.5 : 5.5,
-                        dashArray: seg.mode === 4 ? '4, 4' : null,
-                        opacity: 0.95
-                    }).bindTooltip(modeNames[seg.mode] || 'Tramo', { sticky: true, className: 'gis-tip' }).addTo(groups.customRoute);
-                });
-                L.marker([oPoi.lat, oPoi.lon], { icon: makeRadarIcon('#22c55e') }).addTo(groups.customRoute);
-                L.marker([dPoi.lat, dPoi.lon], { icon: makeRadarIcon('#f43f5e') }).addTo(groups.customRoute);
-                if (multiRes.coords.length >= 2) map.flyToBounds(L.latLngBounds(multiRes.coords).pad(0.25), { duration: 0.85 });
-                const uniqueStops = [...new Set(multiRes.transitStopsUsed)].slice(0, 6);
-                box.innerHTML = `<div><b>${oPoi.name}</b> → <b>${dPoi.name}</b></div>`
-                    + `<div style="color:var(--emerald);margin-top:3px;">🚇 Multimodal: <b>${multiRes.time_s}s</b> · ${multiRes.length_m}m</div>`
-                    + `<div style="color:var(--text-muted);font-size:10.5px;margin-top:4px;">${uniqueStops.length ? 'Estaciones: ' + uniqueStops.join(' → ') : 'Tramo directo caminable/vial.'}</div>`;
-                return;
-            }
+        function clearCustomRoute() {
+            activeRouteEndpoints = null;
+            Object.values(routeOptionGroups).forEach(g => g.clearLayers());
+            if (markerA) { groups.customRoute.removeLayer(markerA); markerA = null; }
+            if (markerB) { groups.customRoute.removeLayer(markerB); markerB = null; }
+            document.getElementById('custom-route-info').style.display = 'none';
+        }
 
-            const fastRes = runAStar(sIdx, gIdx, 'fast');
-            const safeRes = runAStar(sIdx, gIdx, 'safe');
-            const allCoords = [];
-            if ((routeMode === 'compare' || routeMode === 'fast') && fastRes) {
-                L.polyline(fastRes.coords, { color: '#00f2fe', weight: 4.5, opacity: 0.9, className: 'kinetic-route' })
-                    .bindTooltip(`⚡ Más Rápida: ${fastRes.time_s}s · Riesgo ${fastRes.risk}`, { sticky: true, className: 'gis-tip' })
-                    .addTo(groups.customRoute);
-                allCoords.push(...fastRes.coords);
-            }
-            if ((routeMode === 'compare' || routeMode === 'safe') && safeRes) {
-                L.polyline(safeRes.coords, { color: '#22c55e', weight: 4.5, opacity: 0.92 })
-                    .bindTooltip(`🛡️ Más Segura: ${safeRes.time_s}s · Riesgo ${safeRes.risk}`, { sticky: true, className: 'gis-tip' })
-                    .addTo(groups.customRoute);
-                allCoords.push(...safeRes.coords);
-            }
+        // 10B. Simulador de Estrés de Rutas RTP (Desvío Resiliente y Rediseño Completo)
+        const rtpRoutes = (SPADATA.transit_lines || {}).rtp || [];
+        const rtpSel = document.getElementById('rtp-stress-select');
+        rtpRoutes.forEach((rt, i) => { rtpSel.add(new Option(`${rt.name} (${rt.coords.length} pts)`, i)); });
+        let rtpStressMultiplier = 2.8;
+        function setRtpStressLevel(val, btn) {
+            rtpStressMultiplier = val;
+            btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
 
-            L.marker([oPoi.lat, oPoi.lon], { icon: makeRadarIcon('#22c55e') }).addTo(groups.customRoute);
-            L.marker([dPoi.lat, dPoi.lon], { icon: makeRadarIcon('#f43f5e') }).addTo(groups.customRoute);
-            if (allCoords.length >= 2) {
-                map.flyToBounds(L.latLngBounds(allCoords).pad(0.25), { duration: 0.85 });
+        function runRtpStressSimulation() {
+            groups.rtpStress.clearLayers();
+            const rIdx = Number(rtpSel.value || 0);
+            const rt = rtpRoutes[rIdx];
+            if (!rt || rt.coords.length < 4) return;
+
+            const pts = rt.coords;
+            const nPts = pts.length;
+            const midStart = Math.floor(nPts * 0.30);
+            const midEnd = Math.floor(nPts * 0.70);
+
+            // Marcar nodos cercanos al tramo central estresado
+            const blockedSet = new Set();
+            for (let i = midStart; i <= midEnd; i++) {
+                blockedSet.add(findNearestRoadNode(pts[i][0], pts[i][1]));
             }
 
-            if (fastRes && safeRes) {
-                const riskDrop = fastRes.risk > 0 ? Math.round(((fastRes.risk - safeRes.risk) / fastRes.risk) * 100) : 0;
-                const timeDiff = safeRes.time_s - fastRes.time_s;
-                box.innerHTML = `<div style="margin-bottom:4px;"><b>${oPoi.name}</b> → <b>${dPoi.name}</b></div>`
-                    + `<div style="color:var(--cyan);">⚡ Rápida: <b>${fastRes.time_s}s</b> · ${fastRes.length_m}m · Riesgo <b>${fastRes.risk}</b></div>`
-                    + `<div style="color:var(--emerald);">🛡️ Segura: <b>${safeRes.time_s}s</b> · ${safeRes.length_m}m · Riesgo <b>${safeRes.risk}</b></div>`
-                    + `<div style="margin-top:4px;color:var(--text-muted);">Diferencia: <b>+${timeDiff}s</b> · Reducción de riesgo: <b style="color:var(--emerald)">-${riskDrop}%</b></div>`;
-            } else {
-                box.innerHTML = `<b>${oPoi.name}</b> → <b>${dPoi.name}</b><br>No se encontró ruta entre los nodos seleccionados.`;
+            const startIdx = findNearestRoadNode(pts[0][0], pts[0][1]);
+            const a1Idx = findNearestRoadNode(pts[midStart][0], pts[midStart][1]);
+            const a2Idx = findNearestRoadNode(pts[midEnd][0], pts[midEnd][1]);
+            const endIdx = findNearestRoadNode(pts[nPts - 1][0], pts[nPts - 1][1]);
+
+            // 1. Ruta Original bajo Estrés (rojo pulsante)
+            let origDist = 0;
+            for (let i = 0; i < nPts - 1; i++) {
+                origDist += Math.hypot((pts[i+1][0] - pts[i][0]) * 111320, (pts[i+1][1] - pts[i][1]) * 104800);
             }
+            const origBaseTime = Math.round(origDist / (22.0 / 3.6));
+            const origStressedTime = Math.round(origBaseTime * (0.4 + 0.6 * rtpStressMultiplier));
+
+            L.polyline(pts, { color: '#ef4444', weight: 5.5, opacity: 0.9, dashArray: '8, 6' })
+                .bindTooltip(`🔥 RTP Original bajo Estrés (${rtpStressMultiplier}x): ${origStressedTime}s`, { sticky: true, className: 'gis-tip' })
+                .addTo(groups.rtpStress);
+            L.polyline(pts.slice(midStart, midEnd + 1), { color: '#fb7185', weight: 9, opacity: 0.38 }).addTo(groups.rtpStress);
+
+            // 2. Opción A: Desvío Resiliente (preserva inicio y fin, bordea el tramo estresado)
+            const seg1 = runAStar(startIdx, a1Idx, 'fast', 'car', null);
+            const bypass = runAStar(a1Idx, a2Idx, 'balanced', 'car', blockedSet);
+            const seg3 = runAStar(a2Idx, endIdx, 'fast', 'car', null);
+            const detCoords = [
+                ...(seg1 ? seg1.coords : pts.slice(0, midStart + 1)),
+                ...(bypass ? bypass.coords : []),
+                ...(seg3 ? seg3.coords : pts.slice(midEnd))
+            ];
+            const detTime = (seg1 ? seg1.time_s : 60) + (bypass ? bypass.time_s : 180) + (seg3 ? seg3.time_s : 60);
+            const detRisk = ((seg1 ? seg1.risk : 0) + (bypass ? bypass.risk : 0) + (seg3 ? seg3.risk : 0)).toFixed(1);
+
+            L.polyline(detCoords, { color: '#22c55e', weight: 4.5, opacity: 0.95 })
+                .bindTooltip(`🛡️ Opción A · Desvío Resiliente: ${detTime}s`, { sticky: true, className: 'gis-tip' })
+                .addTo(groups.rtpStress);
+
+            // 3. Opción B: Rediseño Completo (terminal a terminal optimizado)
+            const redesign = runAStar(startIdx, endIdx, 'balanced', 'car', blockedSet);
+            if (redesign) {
+                L.polyline(redesign.coords, { color: '#00f2fe', weight: 4.2, opacity: 0.92, className: 'kinetic-route' })
+                    .bindTooltip(`⚡ Opción B · Rediseño Completo: ${redesign.time_s}s · Riesgo ${redesign.risk}`, { sticky: true, className: 'gis-tip' })
+                    .addTo(groups.rtpStress);
+            }
+
+            map.flyToBounds(L.latLngBounds(pts).pad(0.25), { duration: 0.85 });
+
+            const box = document.getElementById('rtp-stress-info');
+            box.style.display = 'block';
+            const detGain = origStressedTime > 0 ? Math.round(((origStressedTime - detTime) / origStressedTime) * 100) : 0;
+            const redGain = redesign && origStressedTime > 0 ? Math.round(((origStressedTime - redesign.time_s) / origStressedTime) * 100) : 0;
+            box.innerHTML = `<div style="margin-bottom:5px;"><b>${rt.name}</b></div>`
+                + `<div style="color:#ef4444;">🔥 Original bajo estrés (${rtpStressMultiplier}x): <b>${origStressedTime}s</b></div>`
+                + `<div style="color:#22c55e;margin-top:4px;">🛡️ Desvío Resiliente: <b>${detTime}s</b> (${detGain >= 0 ? '-' + detGain : '+' + Math.abs(detGain)}% demora) · Riesgo ${detRisk}</div>`
+                + (redesign ? `<div style="color:#00f2fe;margin-top:3px;">⚡ Rediseño Completo: <b>${redesign.time_s}s</b> (${redGain >= 0 ? '-' + redGain : '+' + Math.abs(redGain)}% demora) · ${redesign.length_m}m · Riesgo ${redesign.risk}</div>` : '');
+        }
+
+        function clearRtpStress() {
+            groups.rtpStress.clearLayers();
+            document.getElementById('rtp-stress-info').style.display = 'none';
         }
 
         // Poblar Modal Ejecutivo de Hallazgos
