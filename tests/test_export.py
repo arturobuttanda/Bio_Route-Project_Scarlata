@@ -46,7 +46,7 @@ def test_spatial_export_execution(tmp_path: Path):
     # Validar Schema
     assert isinstance(summary, ExportSummarySchema)
     assert summary.total_features > 0
-    assert len(summary.layers) == 6
+    assert len(summary.layers) >= 6
 
     # 1. Inspeccionar capas en GPKG con pyogrio
     layers = pyogrio.list_layers(gpkg_file)
@@ -65,7 +65,7 @@ def test_spatial_export_execution(tmp_path: Path):
     # Validar CRS de una capa
     gdf_stops = gpd.read_file(gpkg_file, layer="transit_stops", engine="pyogrio")
     assert gdf_stops.crs.to_string() == "EPSG:32614"
-    assert len(gdf_stops) == 30
+    assert len(gdf_stops) >= 30
 
     # 2. Inspeccionar GeoParquet
     assert geoparquet_file.exists()

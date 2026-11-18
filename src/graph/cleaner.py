@@ -24,9 +24,11 @@ def load_road_network(
     G = nx.relabel_nodes(G, {n: int(n) if str(n).isdigit() else n for n in G.nodes()})
 
     for _, _, d in G.edges(data=True):
-        for attr in ("travel_time_s", "length_m", "speed_kph"):
+        for attr in ("travel_time_s", "length_m", "speed_kph", "risk_score", "safe_travel_time_s"):
             if attr in d:
                 d[attr] = float(d[attr])
+        if "accident_count" in d:
+            d["accident_count"] = int(float(d["accident_count"]))
 
     for _, d in G.nodes(data=True):
         for attr in ("x", "y", "x_m", "y_m", "x_proj", "y_proj"):

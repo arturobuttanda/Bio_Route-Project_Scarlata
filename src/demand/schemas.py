@@ -11,7 +11,12 @@ class POIKind(StrEnum):
 
     METRO = "metro"
     METROBUS = "metrobus"
+    RTP = "rtp"
     TROLEBUS = "trolebus"
+    CONCESSIONAIRE_BUS = "concessionaire_bus"
+    HOSPITAL = "hospital"
+    SCHOOL = "school"
+    SHOPPING_MALL = "shopping_mall"
     COLONIA_CENTROID = "colonia_centroid"
 
 

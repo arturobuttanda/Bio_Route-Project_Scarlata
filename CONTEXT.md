@@ -1,16 +1,13 @@
 # SYSTEM CONTEXT & STATE (Live Document)
 
 ## Current Status
-- **Active Phase:** Proyecto Completo, Limpio y Listo para Repositorio (Fases 0 a 6 + Refactorización).
+- **Active Phase:** Fase 7 Completada — Enriquecimiento GIS Real, Siniestralidad Vial y Nuevo Dashboard SPA.
 - **Completed Deliverables:**
-  - Phase 0: Scaffolding, `uv`, Python 3.11, Docker PostGIS, `AGENTS.md`, `pyproject.toml`, `requirements.txt`.
-  - Phase 1: Ingesta OSM y topología vial BJ. LSCC de 5,618 nodos y 11,062 aristas (979.46 km), 66 aristas contraflujo.
-  - Phase 2: 30 POIs anclados en UTM 14N. 150 pares OD gravitatorios: tiempo medio 130.54s, dist media 1,528m.
-  - Phase 3: Metaheurística NSGA-II. 20 soluciones Pareto, -18.66% tiempo viaje (106.18s vs 130.54s), hipervolumen 0.8842.
-  - Phase 4: Simulación contingencias C5 (3 escenarios). Latencia recálculo: 5.37 ms (SLA < 50ms). Robustez: +6.5% vs baseline.
-  - Phase 5: Exportación GIS multi-formato: OGC GeoPackage (`benito_juarez_mobility.gpkg`, 6 capas, 11,562 features), GeoParquet columnar, Web GeoJSON (RFC 7946) y estilos QGIS (`data/outputs/qgis/*.qml`).
-  - Phase 6: Orquestador E2E `run_pipeline.py` (`bj-pipeline`) y SPA `dashboard_benito_juarez.html` compilada desde `src/export/templates/dashboard.html`.
-- **Architecture & Hygiene:**
-  - Carga unificada de grafos (`load_road_network`) y parámetros YAML tipados en `settings.spatial_params`.
-  - Código obsoleto eliminado (`quick_map.py`, `pack_context.py`, `repomix.config.json`, `context_pack.md`, `cache/`).
+  - Topología LSCC: 5,618 nodos, 11,062 aristas (979.46 km), 66 aristas contraflujo.
+  - POIs Reales (`src/ingestion/pois_real.py`): 456 POIs en Benito Juárez (312 escuelas, 80 plazas/centros comerciales, 34 hospitales, 12 Metro, 6 Metrobús, 12 colonias).
+  - Transporte Multimodal Real (`src/ingestion/transit.py`): 405 trazas y 931 paradas reales (Concesionado/camiones, RTP, Metrobús, Metro, Trolebús).
+  - Accidentes Viales 24m (`src/ingestion/accidents.py`): 5,389 hechos de tránsito SSC (6,252 lesionados, 57 fallecidos), con cálculo de `risk_score` y `safe_travel_time_s` por arista para ruteo seguro y NSGA-II.
+  - Exportación OGC (`benito_juarez_mobility.gpkg`): 9 capas, 18,713 features + estilos QGIS en `data/outputs/qgis/`.
+  - Nuevo Dashboard SPA (`src/export/templates/dashboard.html`): KPIs dinámicos reales, gestor de capas por modo/POI, Heatmap de accidentes (`Leaflet.heat`), aristas de alto riesgo y ruteador Rápido/Seguro.
+- **QA:** `pytest` (27 passed), `ruff` (0 errores), `mypy` (0 errores en 38 archivos).
 - **Architectural Rules:** Blind Data Ingestion strictly enforced. Dual CRS: EPSG:32614 (metric) / EPSG:4326 (web).

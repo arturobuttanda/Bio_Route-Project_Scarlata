@@ -20,15 +20,41 @@ DEFAULT_BJ_BBOX = {
 }
 
 
-def get_benito_juarez_polygon(buffer_meters: float = 500.0) -> gpd.GeoDataFrame:
+def get_benito_juarez_polygon(
+    buffer_meters: float = 500.0,
+    use_cache: bool = True,
+) -> gpd.GeoDataFrame:
     """Obtiene el polígono oficial de Benito Juárez con buffer métrico de contención.
 
     Args:
         buffer_meters: Distancia métrica en metros para expandir el boundary.
+        use_cache: Si es True, reutiliza el archivo Parquet cacheado cuando existe.
 
     Returns:
         GeoDataFrame con dos filas: el polígono oficial y el polígono con buffer.
     """
+    cache_path = settings.processed_data_dir / "benito_juarez_boundary.parquet"
+    if use_cache and cache_path.exists():
+        cached = gpd.read_parquet(cache_path)
+        official = cached[cached["type"] == "official_boundary"]
+        if not official.empty:
+            official_geom = official.geometry.iloc[0]
+            buffered_geom = official_geom.buffer(buffer_meters)
+            return gpd.GeoDataFrame(
+                [
+                    {
+                        "type": "official_boundary",
+                        "buffer_meters": 0.0,
+                        "geometry": official_geom,
+                    },
+                    {
+                        "type": "buffered_boundary",
+                        "buffer_meters": buffer_meters,
+                        "geometry": buffered_geom,
+                    },
+                ],
+                crs=cached.crs or "EPSG:32614",
+            )
     try:
         # Intentar geocodificación oficial en OSM
         gdf = ox.geocode_to_gdf("Benito Juárez, Ciudad de México, Mexico")
@@ -62,7 +88,6 @@ def get_benito_juarez_polygon(buffer_meters: float = 500.0) -> gpd.GeoDataFrame:
     gdf_utm = gdf.to_crs("EPSG:32614")
     buffered_geom = gdf_utm.geometry.iloc[0].buffer(buffer_meters)
 
-    # Crear GeoDataFrame resultante con ambas geometrías
     result = gpd.GeoDataFrame(
         [
             {
@@ -78,6 +103,10 @@ def get_benito_juarez_polygon(buffer_meters: float = 500.0) -> gpd.GeoDataFrame:
         ],
         crs="EPSG:32614",
     )
+
+    if use_cache:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        result.to_parquet(cache_path)
 
     return result
 

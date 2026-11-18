@@ -37,6 +37,7 @@ def compute_baseline_routes(
     G: nx.MultiDiGraph,
     od_pairs: list[ODPair],
     algorithm: str = "astar",
+    weight_attr: str = "travel_time_s",
 ) -> tuple[list[RouteResult], BaselineMetricsSummary]:
     """Calcula los caminos mínimos para todos los pares OD y genera métricas agregadas.
 
@@ -78,14 +79,14 @@ def compute_baseline_routes(
                     u_start,
                     v_end,
                     heuristic=heuristic,
-                    weight="travel_time_s",
+                    weight=weight_attr,
                 )
             else:
                 path = nx.dijkstra_path(
                     G,
                     u_start,
                     v_end,
-                    weight="travel_time_s",
+                    weight=weight_attr,
                 )
 
             # Sumar longitud y tiempo sobre el camino encontrado

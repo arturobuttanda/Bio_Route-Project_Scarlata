@@ -46,11 +46,19 @@ def evaluate_individual_fitness(
     Returns:
         Instancia de ObjectiveValues con f1, f2 y f3 calculados.
     """
-    # 1. f1: Tiempo total ponderado por demanda
+    # 1. f1: Tiempo total ponderado por demanda + penalización por riesgo vial en aristas
     total_weighted_time = 0.0
     for r in routes:
         vol = od_volumes.get((r.origin_id, r.destination_id), 1.0)
-        total_weighted_time += r.travel_time_s * vol
+        path = r.node_sequence
+        route_risk = 0.0
+        for i in range(len(path) - 1):
+            u, v = path[i], path[i + 1]
+            if G.has_edge(u, v):
+                best = min(G[u][v].values(), key=lambda d: d.get("travel_time_s", 9999.0))
+                route_risk += float(best.get("risk_score", 0.0))
+        effective_time = r.travel_time_s * (1.0 + 0.02 * route_risk)
+        total_weighted_time += effective_time * vol
 
     # 2. f2: Redundancia / Traslape espacial de aristas
     edge_counts: dict[tuple[int, int], int] = {}

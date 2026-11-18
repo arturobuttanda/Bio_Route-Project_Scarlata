@@ -18,6 +18,10 @@ from src.demand.pipeline import run_demand_and_baseline_pipeline
 from src.export.spa_builder import build_spa_dashboard
 from src.export.spatial_export import export_spatial_layers
 from src.graph.builder import build_road_network
+from src.ingestion.accidents import ingest_benito_juarez_accidents
+from src.ingestion.pois_real import build_real_pois_catalog
+from src.ingestion.qa_validator import run_spatial_qa_audit
+from src.ingestion.transit import ingest_real_transit_network
 from src.optimization.pipeline import run_optimization_pipeline
 from src.simulation.pipeline import run_simulation_pipeline
 
@@ -48,6 +52,22 @@ def run_full_pipeline(
             "\n[FASE 1] Ingesta de límites y construcción de topología fuertemente conexa (LSCC)..."
         )
         build_road_network(buffer_meters=500.0)
+
+    # -------------------------------------------------------------
+    # FASE 1B: Capas Reales (POIs, Transporte Multimodal, Accidentes 24m)
+    # -------------------------------------------------------------
+    pois_file = settings.processed_data_dir / "pois_real.parquet"
+    transit_file = settings.processed_data_dir / "transit_lines.geoparquet"
+    accidents_file = settings.processed_data_dir / "accidents_bj.geoparquet"
+    if not (skip_osm and pois_file.exists() and transit_file.exists() and accidents_file.exists()):
+        print("\n[FASE 1B] Ingiriendo POIs reales, transporte multimodal y accidentes (24m)...")
+        if not (skip_osm and pois_file.exists()):
+            build_real_pois_catalog()
+        if not (skip_osm and transit_file.exists()):
+            ingest_real_transit_network()
+        if not (skip_osm and accidents_file.exists()):
+            ingest_benito_juarez_accidents(window_months=24)
+    run_spatial_qa_audit()
 
     # -------------------------------------------------------------
     # FASE 2: Demanda y Ruteo Baseline

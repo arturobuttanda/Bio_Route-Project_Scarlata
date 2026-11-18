@@ -8,9 +8,11 @@ cercano de la red vial mediante KDTree en UTM Zona 14N (EPSG:32614).
 from typing import Any
 
 import networkx as nx
+import pandas as pd
 from pyproj import Transformer
 from scipy.spatial import KDTree
 
+from config.settings import settings
 from src.demand.schemas import POIKind, PointOfInterest
 
 # Catálogo calibrado de POIs neurálgicos de la alcaldía Benito Juárez (CDMX)
@@ -261,8 +263,13 @@ RAW_BENITO_JUAREZ_POIS: list[dict[str, Any]] = [
 ]
 
 
-def load_pois_with_metric_coords() -> list[PointOfInterest]:
-    """Carga los POIs y proyecta sus coordenadas a UTM Zona 14N (EPSG:32614)."""
+def load_pois_with_metric_coords(use_real: bool = True) -> list[PointOfInterest]:
+    """Carga los POIs reales (si existen) o el catálogo base, en EPSG:32614."""
+    real_path = settings.processed_data_dir / "pois_real.parquet"
+    if use_real and real_path.exists():
+        df = pd.read_parquet(real_path)
+        return [PointOfInterest.model_validate(row) for row in df.to_dict(orient="records")]
+
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:32614", always_xy=True)
     pois: list[PointOfInterest] = []
 

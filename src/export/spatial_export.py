@@ -45,7 +45,11 @@ def export_spatial_layers(
     G = load_road_network(ensure_weights=False)
 
     node_proj: dict[int, tuple[float, float]] = {
-        n: (float(d.get("x_proj", 0.0)), float(d.get("y_proj", 0.0))) for n, d in G.nodes(data=True)
+        n: (
+            float(d.get("x_m", d.get("x_proj", 0.0))),
+            float(d.get("y_m", d.get("y_proj", 0.0))),
+        )
+        for n, d in G.nodes(data=True)
     }
 
     layers_summary: list[LayerSummary] = []
@@ -233,6 +237,56 @@ def export_spatial_layers(
         )
     )
     total_features += len(gdf_choke)
+
+    # --- Capa 7: transit_lines (Metro, Metrobús, RTP, Trolebús, Concesionado) ---
+    transit_lines_file = settings.processed_data_dir / "transit_lines.geoparquet"
+    if transit_lines_file.exists():
+        gdf_tlines = gpd.read_parquet(transit_lines_file).to_crs("EPSG:32614")
+        if not gdf_tlines.empty:
+            gdf_tlines.to_file(gpkg_path, layer="transit_lines", driver="GPKG", engine="pyogrio")
+            layers_summary.append(
+                LayerSummary(
+                    name="transit_lines",
+                    feature_count=len(gdf_tlines),
+                    geometry_type="LineString",
+                    crs="EPSG:32614",
+                )
+            )
+            total_features += len(gdf_tlines)
+
+    # --- Capa 8: transit_stops_network (Paradas reales GTFS + OSM) ---
+    transit_stops_file = settings.processed_data_dir / "transit_stops.geoparquet"
+    if transit_stops_file.exists():
+        gdf_tstops = gpd.read_parquet(transit_stops_file).to_crs("EPSG:32614")
+        if not gdf_tstops.empty:
+            gdf_tstops.to_file(
+                gpkg_path, layer="transit_stops_network", driver="GPKG", engine="pyogrio"
+            )
+            layers_summary.append(
+                LayerSummary(
+                    name="transit_stops_network",
+                    feature_count=len(gdf_tstops),
+                    geometry_type="Point",
+                    crs="EPSG:32614",
+                )
+            )
+            total_features += len(gdf_tstops)
+
+    # --- Capa 9: road_accidents (Hechos de tránsito 24m) ---
+    accidents_file = settings.processed_data_dir / "accidents_bj.geoparquet"
+    if accidents_file.exists():
+        gdf_acc = gpd.read_parquet(accidents_file).to_crs("EPSG:32614")
+        if not gdf_acc.empty:
+            gdf_acc.to_file(gpkg_path, layer="road_accidents", driver="GPKG", engine="pyogrio")
+            layers_summary.append(
+                LayerSummary(
+                    name="road_accidents",
+                    feature_count=len(gdf_acc),
+                    geometry_type="Point",
+                    crs="EPSG:32614",
+                )
+            )
+            total_features += len(gdf_acc)
 
     # --- GeoParquet: Analytics Routes (Baseline + Pareto) ---
     all_routes = []
