@@ -18,6 +18,7 @@ from src.demand.pipeline import run_demand_and_baseline_pipeline
 from src.export.spa_builder import build_spa_dashboard
 from src.export.spatial_export import export_spatial_layers
 from src.graph.builder import build_road_network
+from src.ingestion.accident_analytics import run_accident_analytics
 from src.ingestion.accidents import ingest_benito_juarez_accidents
 from src.ingestion.pois_real import build_real_pois_catalog
 from src.ingestion.qa_validator import run_spatial_qa_audit
@@ -67,6 +68,7 @@ def run_full_pipeline(
             ingest_real_transit_network()
         if not (skip_osm and accidents_file.exists()):
             ingest_benito_juarez_accidents(window_months=24)
+    run_accident_analytics()
     run_spatial_qa_audit()
 
     # -------------------------------------------------------------
@@ -145,8 +147,9 @@ def run_full_pipeline(
     if res_metrics_file.exists():
         with open(res_metrics_file, encoding="utf-8") as f:
             rm = json.load(f)
+            gain = float(rm.get("resilience_gain_percent", 0.0))
             print(
-                f"• Resiliencia C5: Robustez Red {rm.get('pareto_global_robustness')} (+{rm.get('resilience_gain_percent')}% vs baseline), latencia re-ruteo {rm.get('mean_rerouting_duration_ms')}ms."
+                f"• Resiliencia C5: Robustez Red {rm.get('pareto_global_robustness')} ({gain:+.2f}% vs baseline), latencia re-ruteo {rm.get('mean_rerouting_duration_ms')}ms."
             )
 
     if exp_summary_file.exists():

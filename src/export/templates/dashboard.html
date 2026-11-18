@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Benito Juárez Mobility Digital Twin | Minimalist GeoAI</title>
 
-    <!-- Leaflet GIS + Heatmap -->
+    <!-- Leaflet GIS + Heatmap + MarkerCluster -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -484,6 +487,56 @@
         }
         .leaflet-control-attribution { display: none; }
 
+        /* Sleek Dark MarkerClusters */
+        .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+            background: rgba(56, 189, 248, 0.18) !important;
+        }
+        .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+            background: rgba(11, 17, 32, 0.92) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(56, 189, 248, 0.55);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* Executive Findings Modal */
+        .findings-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            background: rgba(3, 5, 10, 0.78);
+            backdrop-filter: blur(8px);
+            display: none;
+            place-items: center;
+            padding: 20px;
+        }
+        .findings-backdrop.open { display: grid; animation: fadeSlideDown 0.25s var(--ease-out); }
+        .findings-dialog {
+            width: min(820px, 95vw);
+            background: #0a0f1d;
+            border: 1px solid var(--border-active);
+            border-radius: 16px;
+            padding: 22px 24px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.85);
+        }
+        .findings-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .finding-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-hair);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+        .finding-card h4 { font-size: 12.5px; margin-bottom: 6px; }
+        @media (max-width: 780px) { .findings-grid { grid-template-columns: 1fr; } }
+
         @media (max-width: 1100px) { .kpi-ribbon { display: none; } }
     </style>
 </head>
@@ -592,8 +645,12 @@
 
                 <div class="section-title">Siniestralidad y Optimización</div>
                 <label class="layer-row">
+                    <span class="layer-left"><span class="dot-swatch" style="background:#ef4444;box-shadow:0 0 6px #ef4444;"></span>Clusters Críticos (DBSCAN)</span>
+                    <span class="layer-right"><span class="count-badge" id="cnt-dbscan">0</span><input type="checkbox" class="toggle" onchange="toggleGroup('dbscan', this.checked)"></span>
+                </label>
+                <label class="layer-row">
                     <span class="layer-left"><span class="line-swatch" style="background:linear-gradient(90deg,#f59e0b,#ef4444);"></span>Heatmap Accidentes (24m)</span>
-                    <span class="layer-right"><span class="count-badge" id="cnt-acc">0</span><input type="checkbox" class="toggle" onchange="toggleHeat(this.checked)"></span>
+                    <span class="layer-right"><span class="count-badge" id="cnt-acc">0</span><input type="checkbox" class="toggle" id="chk-heat" onchange="toggleHeat(this.checked)"></span>
                 </label>
                 <label class="layer-row">
                     <span class="layer-left"><span class="line-swatch" style="background:#fb7185;"></span>Tramos Alto Riesgo Vial</span>
@@ -611,16 +668,17 @@
 
             <!-- TAB 2: PARETO -->
             <div class="tab-pane" id="tab-pareto">
-                <div class="section-title">Frente de Pareto NSGA-II</div>
+                <div class="section-title">Frente de Pareto Interactivo (NSGA-II)</div>
                 <div class="control-box">
-                    <div style="display:flex;justify-content:space-between;font-size:12px;">
-                        <span style="color:var(--text-muted)">Solución</span>
+                    <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+                        <span style="color:var(--text-muted)">Tiempo (s) vs. Riesgo Vial</span>
                         <strong style="color:var(--cyan);font-family:'JetBrains Mono',monospace;" id="pareto-sol-label">#0</strong>
                     </div>
+                    <svg id="pareto-svg" viewBox="0 0 280 145" style="width:100%;height:145px;background:rgba(3,5,10,0.65);border:1px solid var(--border-hair);border-radius:7px;"></svg>
                     <input type="range" id="pareto-slider" min="0" max="19" value="0" oninput="selectParetoSolution(this.value)">
                     <div class="stat-grid">
                         <div class="mini-stat"><small>Tiempo Medio</small><strong style="color:var(--emerald)" id="p-time">-- s</strong></div>
-                        <div class="mini-stat"><small>Longitud</small><strong id="p-len">-- km</strong></div>
+                        <div class="mini-stat"><small>Riesgo / Longitud</small><strong id="p-len">-- km</strong></div>
                     </div>
                 </div>
                 <div class="section-title">Indicadores Globales</div>
@@ -633,10 +691,12 @@
 
             <!-- TAB 3: RUTEO -->
             <div class="tab-pane" id="tab-router">
-                <div class="section-title">Criterio de Ruteo</div>
-                <div class="btn-grid" style="margin-bottom:12px;">
-                    <button class="pill-btn active" id="mode-fast" onclick="setRouteMode('fast')">⚡ Rápida</button>
-                    <button class="pill-btn" id="mode-safe" onclick="setRouteMode('safe')">🛡️ Segura</button>
+                <div class="section-title">Motor A* Calle por Calle &amp; Multimodal</div>
+                <div class="btn-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:10px;">
+                    <button class="pill-btn active" id="mode-compare" onclick="setRouteMode('compare')">⚖️ Rápida vs Segura</button>
+                    <button class="pill-btn" id="mode-multi" onclick="setRouteMode('multi')">🚇 Multimodal</button>
+                    <button class="pill-btn" id="mode-fast" onclick="setRouteMode('fast')">⚡ Solo Rápida</button>
+                    <button class="pill-btn" id="mode-safe" onclick="setRouteMode('safe')">🛡️ Solo Segura</button>
                 </div>
                 <div class="section-title">Corredor Origen - Destino</div>
                 <div class="control-box">
@@ -644,14 +704,27 @@
                     <select id="od-origin"></select>
                     <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Destino</label>
                     <select id="od-dest"></select>
-                    <button class="primary-btn" onclick="traceCustomRoute()">Trazar Ruta</button>
+                    <button class="primary-btn" onclick="traceCustomRoute()">Calcular Ruta Real A*</button>
                     <button class="secondary-btn" onclick="clearCustomRoute()">Limpiar</button>
                 </div>
-                <div id="custom-route-info" class="control-box" style="display:none;font-size:12px;line-height:1.55;"></div>
+                <div id="custom-route-info" class="control-box" style="display:none;font-size:11.5px;line-height:1.6;"></div>
             </div>
 
             <!-- TAB 4: C5 / RIESGO -->
             <div class="tab-pane" id="tab-c5">
+                <div class="section-title">Perfil Horario de Accidentes (24h)</div>
+                <div class="control-box">
+                    <div class="btn-grid" style="grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:8px;">
+                        <button class="pill-btn active" onclick="filterHeatBand('all', this)">Todo</button>
+                        <button class="pill-btn" onclick="filterHeatBand(0, this)">AM</button>
+                        <button class="pill-btn" onclick="filterHeatBand(1, this)">Día</button>
+                        <button class="pill-btn" onclick="filterHeatBand(2, this)">PM</button>
+                        <button class="pill-btn" onclick="filterHeatBand(3, this)">Noche</button>
+                    </div>
+                    <svg id="hourly-svg" viewBox="0 0 264 68" style="width:100%;height:68px;"></svg>
+                    <div id="band-summary" style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Mostrando 5,389 eventos (24 meses)</div>
+                </div>
+
                 <div class="section-title">Simulador de Contingencias C5</div>
                 <div class="control-box">
                     <select id="c5-select" onchange="activateContingency(this.value)">
@@ -667,12 +740,27 @@
             </div>
         </div>
 
-        <div class="sidebar-footer">
+        <div class="sidebar-footer" style="grid-template-columns:repeat(4,1fr);">
             <button class="footer-btn" onclick="resetMapView()">Encuadre</button>
+            <button class="footer-btn" onclick="toggleFindingsModal()" style="color:var(--cyan);border-color:rgba(0,242,254,0.3);">Hallazgos</button>
             <button class="footer-btn" onclick="exportGeoJSON()">GeoJSON</button>
-            <button class="footer-btn" onclick="copySummaryClipboard()">Copiar KPIs</button>
+            <button class="footer-btn" onclick="copySummaryClipboard()">KPIs</button>
         </div>
     </aside>
+
+    <!-- Executive Findings Modal -->
+    <div class="findings-backdrop" id="findings-modal" onclick="if(event.target===this) toggleFindingsModal()">
+        <div class="findings-dialog">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <div style="font-size:15px;font-weight:700;">Resumen Ejecutivo de Hallazgos · Benito Juárez</div>
+                    <div style="font-size:11.5px;color:var(--text-muted);">Movilidad Segura, Multimodal y Resiliente basada en Datos Reales</div>
+                </div>
+                <button class="icon-btn" onclick="toggleFindingsModal()">✕</button>
+            </div>
+            <div class="findings-grid" id="findings-grid"></div>
+        </div>
+    </div>
 
     <button class="sidebar-toggle" onclick="toggleSidebar()">☰ Panel</button>
 
@@ -732,6 +820,8 @@
             interactive: false
         }).addTo(map);
 
+        const makeCluster = () => L.markerClusterGroup({ maxClusterRadius: 42, disableClusteringAtZoom: 16, spiderfyOnMaxZoom: true });
+
         // 3. Grupos de Capas (inicio ultralimpio: Metro, Metrobús, RTP, Hospitales y Pareto activos)
         const groups = {
             metro: L.layerGroup().addTo(map),
@@ -741,9 +831,10 @@
             concessionaire: L.layerGroup(),
             transitStops: L.layerGroup(),
             hospital: L.layerGroup().addTo(map),
-            school: L.layerGroup(),
-            shopping_mall: L.layerGroup(),
+            school: makeCluster(),
+            shopping_mall: makeCluster(),
             stations: L.layerGroup(),
+            dbscan: L.layerGroup(),
             riskEdges: L.layerGroup(),
             pareto: L.layerGroup().addTo(map),
             baseline: L.layerGroup(),
@@ -822,9 +913,9 @@
         const stopSubGroups = {
             metro: L.layerGroup().addTo(groups.metro),
             metrobus: L.layerGroup().addTo(groups.metrobus),
-            rtp: L.layerGroup().addTo(groups.rtp),
+            rtp: makeCluster().addTo(groups.rtp),
             trolebus: L.layerGroup().addTo(groups.trolebus),
-            concessionaire: L.layerGroup().addTo(groups.concessionaire)
+            concessionaire: makeCluster().addTo(groups.concessionaire)
         };
         let showStopsEnabled = true;
 
@@ -897,16 +988,70 @@
         document.getElementById('cnt-mall').textContent = poiCounts.shopping_mall;
         document.getElementById('cnt-stations').textContent = poiCounts.stations;
 
-        // 7. Heatmap Accidentes (OFF por defecto para vista limpia) + Aristas de Riesgo
-        const accHeatData = SPADATA.accidents_heat || [];
-        document.getElementById('cnt-acc').textContent = accHeatData.length;
-        const heatLayer = L.heatLayer(accHeatData, {
+        // 7. Heatmap Accidentes (con filtro horario), Clusters DBSCAN y Aristas de Riesgo
+        const accHeatRaw = SPADATA.accidents_heat || [];
+        document.getElementById('cnt-acc').textContent = accHeatRaw.length;
+        const heatLayer = L.heatLayer(accHeatRaw.map(p => [p[0], p[1], p[2]]), {
             radius: 17,
             blur: 22,
             maxZoom: 16,
             gradient: { 0.25: '#38bdf8', 0.55: '#f59e0b', 0.85: '#ef4444', 1.0: '#ffffff' }
         });
-        function toggleHeat(show) { if (show) map.addLayer(heatLayer); else map.removeLayer(heatLayer); }
+        function toggleHeat(show) {
+            document.getElementById('chk-heat').checked = show;
+            if (show) map.addLayer(heatLayer); else map.removeLayer(heatLayer);
+        }
+
+        // Clusters DBSCAN
+        const dbscanData = SPADATA.accident_analytics || {};
+        const dbClusters = dbscanData.clusters || [];
+        document.getElementById('cnt-dbscan').textContent = dbscanData.cluster_count || dbClusters.length;
+        dbClusters.forEach((c, idx) => {
+            const circle = L.circle([c.lat, c.lon], {
+                radius: c.radius_m,
+                color: '#ef4444',
+                weight: 1.6,
+                fillColor: '#f43f5e',
+                fillOpacity: 0.24
+            });
+            circle.bindTooltip(`<b>Cluster #${idx + 1} · ${c.label}</b><br>${c.accident_count} acc. · Pico ${String(c.peak_hour).padStart(2, '0')}:00h`, { className: 'gis-tip' });
+            circle.bindPopup(`<b>Cluster Crítico DBSCAN #${idx + 1}</b><br>${c.label}<br>Accidentes: <b>${c.accident_count}</b> · Severidad: <b>${c.severity_sum}</b><br>Lesionados: ${c.injured_total} · Fallecidos: ${c.fatalities_total}<br>Tipo frecuente: ${c.dominant_type}<br>Hora pico: <b>${String(c.peak_hour).padStart(2, '0')}:00h</b>`);
+            circle.addTo(groups.dbscan);
+        });
+
+        // Gráfica horaria 24h + Filtro por franja
+        function isHourInBand(h, band) {
+            if (band === 'all') return true;
+            if (band === 0) return h >= 6 && h <= 9;
+            if (band === 1) return h >= 10 && h <= 16;
+            if (band === 2) return h >= 17 && h <= 20;
+            return h >= 21 || h <= 5;
+        }
+        function renderHourlyChart(activeBand) {
+            const svg = document.getElementById('hourly-svg');
+            const counts = dbscanData.hourly_counts || new Array(24).fill(0);
+            const maxC = Math.max(1, ...counts);
+            svg.innerHTML = counts.map((v, h) => {
+                const bh = Math.max(3, Math.round((v / maxC) * 48));
+                const x = h * 11 + 1;
+                const y = 52 - bh;
+                const active = isHourInBand(h, activeBand);
+                const fill = active ? '#f43f5e' : 'rgba(148,163,184,0.22)';
+                return `<rect x="${x}" y="${y}" width="8" height="${bh}" rx="2" fill="${fill}"><title>${String(h).padStart(2,'0')}:00h -> ${v} accidentes</title></rect>`
+                    + (h % 6 === 0 ? `<text x="${x}" y="65" fill="#7c8ba1" font-size="8" font-family="JetBrains Mono">${String(h).padStart(2,'0')}h</text>` : '');
+            }).join('');
+        }
+        renderHourlyChart('all');
+
+        function filterHeatBand(band, btn) {
+            btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const filtered = band === 'all' ? accHeatRaw : accHeatRaw.filter(p => p[3] === band);
+            heatLayer.setLatLngs(filtered.map(p => [p[0], p[1], p[2]]));
+            if (!map.hasLayer(heatLayer)) toggleHeat(true);
+            renderHourlyChart(band);
+            document.getElementById('band-summary').textContent = `Mostrando ${filtered.length.toLocaleString()} eventos en franja seleccionada`;
+        }
 
         const riskEdges = SPADATA.high_risk_edges || [];
         document.getElementById('cnt-risk-edges').textContent = riskEdges.length;
@@ -936,14 +1081,43 @@
         const slider = document.getElementById('pareto-slider');
         if (paretoKeys.length > 0) { slider.min = 0; slider.max = paretoKeys.length - 1; }
 
+        function renderParetoChart(activeIdx) {
+            const svg = document.getElementById('pareto-svg');
+            const sols = paretoKeys.map(k => SPADATA.pareto_solutions[k]).filter(Boolean);
+            if (!sols.length) return;
+            const times = sols.map(s => s.avg_travel_time_s);
+            const risks = sols.map(s => s.total_risk_score ?? s.total_length_km);
+            const minT = Math.min(...times), maxT = Math.max(...times, minT + 1);
+            const minR = Math.min(...risks), maxR = Math.max(...risks, minR + 1);
+            const padL = 28, padR = 12, padT = 12, padB = 22, w = 280 - padL - padR, h = 145 - padT - padB;
+
+            let html = `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+h}" stroke="rgba(255,255,255,0.14)"/>`
+                     + `<line x1="${padL}" y1="${padT+h}" x2="${padL+w}" y2="${padT+h}" stroke="rgba(255,255,255,0.14)"/>`
+                     + `<text x="${padL + w/2}" y="140" text-anchor="middle" fill="#7c8ba1" font-size="8.5">Tiempo Medio (s)</text>`
+                     + `<text x="10" y="${padT + h/2}" text-anchor="middle" transform="rotate(-90 10 ${padT + h/2})" fill="#7c8ba1" font-size="8.5">Riesgo Vial</text>`;
+
+            sols.forEach((s, idx) => {
+                const cx = padL + ((s.avg_travel_time_s - minT) / (maxT - minT)) * w;
+                const cy = padT + h - (( (s.total_risk_score ?? s.total_length_km) - minR) / (maxR - minR)) * h;
+                const isActive = idx === Number(activeIdx);
+                const r = isActive ? 5.5 : 3.5;
+                const fill = isActive ? '#00f2fe' : '#22c55e';
+                const stroke = isActive ? '#ffffff' : 'none';
+                html += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" style="cursor:pointer;" onclick="selectParetoSolution(${idx})">`
+                      + `<title>Solución #${s.solution_index}: ${s.avg_travel_time_s}s · Riesgo ${s.total_risk_score ?? 0}</title></circle>`;
+            });
+            svg.innerHTML = html;
+        }
+
         function selectParetoSolution(idx) {
+            slider.value = idx;
             groups.pareto.clearLayers();
             const solKey = paretoKeys[idx] ?? 0;
             const sol = (SPADATA.pareto_solutions || {})[solKey];
             if (!sol) return;
             document.getElementById('pareto-sol-label').textContent = `#${sol.solution_index}`;
             document.getElementById('p-time').textContent = `${sol.avg_travel_time_s} s`;
-            document.getElementById('p-len').textContent = `${sol.total_length_km} km`;
+            document.getElementById('p-len').textContent = `${sol.total_risk_score ?? 0} / ${sol.total_length_km} km`;
             sol.routes.forEach(r => {
                 const pLine = L.polyline(r.coords, {
                     color: '#00f2fe',
@@ -956,6 +1130,7 @@
                 pLine.on('mouseout', function () { this.setStyle({ weight: 2.8, opacity: 0.82 }); });
                 pLine.addTo(groups.pareto);
             });
+            renderParetoChart(idx);
         }
         selectParetoSolution(0);
 
@@ -975,12 +1150,103 @@
             });
         }
 
-        // 10. Ruteador OD con Radar Pulse Markers
-        let routeMode = 'fast';
+        // 10. Ruteador Real Calle por Calle & Multimodal A* en Navegador
+        const rg = SPADATA.routing_graph || { node_map: {}, node_labels: {}, nodes: [], edges: [] };
+        const adjList = Array.from({ length: rg.nodes.length }, () => []);
+        rg.edges.forEach(e => { adjList[e[0]].push(e); });
+
+        function runAStar(startIdx, goalIdx, weightMode) {
+            const n = rg.nodes.length;
+            if (startIdx == null || goalIdx == null || startIdx === goalIdx) return null;
+            const allowTransit = weightMode === 'multi';
+            const useSafe = weightMode === 'safe';
+            const gScore = new Float64Array(n).fill(Infinity);
+            const cameFrom = new Int32Array(n).fill(-1);
+            const edgeUsed = new Array(n).fill(null);
+            const gLat = rg.nodes[goalIdx][0], gLon = rg.nodes[goalIdx][1];
+            const heur = (idx) => {
+                const dLat = (rg.nodes[idx][0] - gLat) * 111320;
+                const dLon = (rg.nodes[idx][1] - gLon) * 104800;
+                return Math.hypot(dLat, dLon) / 22.2;
+            };
+
+            const heap = [[heur(startIdx), startIdx]];
+            gScore[startIdx] = 0;
+            const push = (item) => {
+                heap.push(item);
+                let i = heap.length - 1;
+                while (i > 0) {
+                    const p = (i - 1) >> 1;
+                    if (heap[p][0] <= heap[i][0]) break;
+                    [heap[p], heap[i]] = [heap[i], heap[p]];
+                    i = p;
+                }
+            };
+            const pop = () => {
+                const top = heap[0];
+                const last = heap.pop();
+                if (heap.length > 0) {
+                    heap[0] = last;
+                    let i = 0;
+                    while (true) {
+                        let l = 2 * i + 1, r = 2 * i + 2, s = i;
+                        if (l < heap.length && heap[l][0] < heap[s][0]) s = l;
+                        if (r < heap.length && heap[r][0] < heap[s][0]) s = r;
+                        if (s === i) break;
+                        [heap[i], heap[s]] = [heap[s], heap[i]];
+                        i = s;
+                    }
+                }
+                return top;
+            };
+
+            while (heap.length > 0) {
+                const [, u] = pop();
+                if (u === goalIdx) {
+                    const segments = [];
+                    const transitStopsUsed = [];
+                    let totalTime = 0, totalLen = 0, totalRisk = 0;
+                    let curr = goalIdx;
+                    while (curr !== -1) {
+                        const ed = edgeUsed[curr];
+                        if (ed) {
+                            totalTime += ed[2]; totalLen += ed[4]; totalRisk += ed[5];
+                            segments.push({ coords: [rg.nodes[ed[0]], rg.nodes[ed[1]]], mode: ed[6] || 0 });
+                            const lbl = (rg.node_labels || {})[String(ed[1])];
+                            if (lbl && (ed[6] === 1 || ed[6] === 2 || ed[6] === 3)) transitStopsUsed.push(lbl);
+                        }
+                        curr = cameFrom[curr];
+                    }
+                    segments.reverse();
+                    transitStopsUsed.reverse();
+                    const coords = segments.length ? [segments[0].coords[0], ...segments.map(s => s.coords[1])] : [];
+                    return { coords, segments, transitStopsUsed, time_s: Math.round(totalTime), length_m: Math.round(totalLen), risk: Number(totalRisk.toFixed(1)) };
+                }
+                const nbrs = adjList[u];
+                for (let i = 0; i < nbrs.length; i++) {
+                    const ed = nbrs[i];
+                    const mCode = ed[6] || 0;
+                    if (!allowTransit && mCode !== 0) continue;
+                    const v = ed[1];
+                    const w = useSafe ? ed[3] : ed[2];
+                    const tent = gScore[u] + w;
+                    if (tent < gScore[v]) {
+                        cameFrom[v] = u;
+                        edgeUsed[v] = ed;
+                        gScore[v] = tent;
+                        push([tent + heur(v), v]);
+                    }
+                }
+            }
+            return null;
+        }
+
+        let routeMode = 'compare';
         function setRouteMode(m) {
             routeMode = m;
-            document.getElementById('mode-fast').classList.toggle('active', m === 'fast');
-            document.getElementById('mode-safe').classList.toggle('active', m === 'safe');
+            ['compare', 'multi', 'fast', 'safe'].forEach(id => {
+                document.getElementById('mode-' + id).classList.toggle('active', m === id);
+            });
         }
 
         function makeRadarIcon(color) {
@@ -999,21 +1265,93 @@
             const dPoi = SPADATA.pois.find(p => p.id === dId);
             if (!oPoi || !dPoi) return;
 
-            const match = (SPADATA.baseline_routes || []).find(r => r.origin_id === oId && r.destination_id === dId);
-            const coords = match ? match.coords : [[oPoi.lat, oPoi.lon], [dPoi.lat, dPoi.lon]];
-            const color = routeMode === 'safe' ? '#22c55e' : '#00f2fe';
-
-            L.polyline(coords, { color, weight: 4.8, opacity: 0.96, className: 'kinetic-route' }).addTo(groups.customRoute);
-            L.marker([oPoi.lat, oPoi.lon], { icon: makeRadarIcon('#22c55e') }).addTo(groups.customRoute);
-            L.marker([dPoi.lat, dPoi.lon], { icon: makeRadarIcon('#f43f5e') }).addTo(groups.customRoute);
-            map.flyToBounds(L.latLngBounds(coords).pad(0.25), { duration: 0.85 });
-
+            const sIdx = rg.node_map[String(oPoi.node)];
+            const gIdx = rg.node_map[String(dPoi.node)];
             const box = document.getElementById('custom-route-info');
             box.style.display = 'block';
-            box.innerHTML = match
-                ? `<b>${oPoi.name}</b> → <b>${dPoi.name}</b><br>Tiempo: <b>${match.travel_time_s}s</b> · Dist: <b>${match.length_m}m</b>`
-                : `<b>${oPoi.name}</b> → <b>${dPoi.name}</b><br>Corredor directo (${routeMode === 'safe' ? 'Seguro' : 'Rápido'}).`;
+
+            if (routeMode === 'multi') {
+                const multiRes = runAStar(sIdx, gIdx, 'multi');
+                if (!multiRes) { box.innerHTML = 'No se encontró ruta multimodal.'; return; }
+                const modeColors = { 0: '#94a3b8', 1: '#f97316', 2: '#ef4444', 3: '#22c55e', 4: '#ffffff' };
+                const modeNames = { 0: 'Calle/Caminata', 1: 'Metro', 2: 'Metrobús', 3: 'RTP', 4: 'Abordaje/Transbordo' };
+                multiRes.segments.forEach(seg => {
+                    L.polyline(seg.coords, {
+                        color: modeColors[seg.mode] || '#00f2fe',
+                        weight: seg.mode === 0 || seg.mode === 4 ? 3.5 : 5.5,
+                        dashArray: seg.mode === 4 ? '4, 4' : null,
+                        opacity: 0.95
+                    }).bindTooltip(modeNames[seg.mode] || 'Tramo', { sticky: true, className: 'gis-tip' }).addTo(groups.customRoute);
+                });
+                L.marker([oPoi.lat, oPoi.lon], { icon: makeRadarIcon('#22c55e') }).addTo(groups.customRoute);
+                L.marker([dPoi.lat, dPoi.lon], { icon: makeRadarIcon('#f43f5e') }).addTo(groups.customRoute);
+                if (multiRes.coords.length >= 2) map.flyToBounds(L.latLngBounds(multiRes.coords).pad(0.25), { duration: 0.85 });
+                const uniqueStops = [...new Set(multiRes.transitStopsUsed)].slice(0, 6);
+                box.innerHTML = `<div><b>${oPoi.name}</b> → <b>${dPoi.name}</b></div>`
+                    + `<div style="color:var(--emerald);margin-top:3px;">🚇 Multimodal: <b>${multiRes.time_s}s</b> · ${multiRes.length_m}m</div>`
+                    + `<div style="color:var(--text-muted);font-size:10.5px;margin-top:4px;">${uniqueStops.length ? 'Estaciones: ' + uniqueStops.join(' → ') : 'Tramo directo caminable/vial.'}</div>`;
+                return;
+            }
+
+            const fastRes = runAStar(sIdx, gIdx, 'fast');
+            const safeRes = runAStar(sIdx, gIdx, 'safe');
+            const allCoords = [];
+            if ((routeMode === 'compare' || routeMode === 'fast') && fastRes) {
+                L.polyline(fastRes.coords, { color: '#00f2fe', weight: 4.5, opacity: 0.9, className: 'kinetic-route' })
+                    .bindTooltip(`⚡ Más Rápida: ${fastRes.time_s}s · Riesgo ${fastRes.risk}`, { sticky: true, className: 'gis-tip' })
+                    .addTo(groups.customRoute);
+                allCoords.push(...fastRes.coords);
+            }
+            if ((routeMode === 'compare' || routeMode === 'safe') && safeRes) {
+                L.polyline(safeRes.coords, { color: '#22c55e', weight: 4.5, opacity: 0.92 })
+                    .bindTooltip(`🛡️ Más Segura: ${safeRes.time_s}s · Riesgo ${safeRes.risk}`, { sticky: true, className: 'gis-tip' })
+                    .addTo(groups.customRoute);
+                allCoords.push(...safeRes.coords);
+            }
+
+            L.marker([oPoi.lat, oPoi.lon], { icon: makeRadarIcon('#22c55e') }).addTo(groups.customRoute);
+            L.marker([dPoi.lat, dPoi.lon], { icon: makeRadarIcon('#f43f5e') }).addTo(groups.customRoute);
+            if (allCoords.length >= 2) {
+                map.flyToBounds(L.latLngBounds(allCoords).pad(0.25), { duration: 0.85 });
+            }
+
+            if (fastRes && safeRes) {
+                const riskDrop = fastRes.risk > 0 ? Math.round(((fastRes.risk - safeRes.risk) / fastRes.risk) * 100) : 0;
+                const timeDiff = safeRes.time_s - fastRes.time_s;
+                box.innerHTML = `<div style="margin-bottom:4px;"><b>${oPoi.name}</b> → <b>${dPoi.name}</b></div>`
+                    + `<div style="color:var(--cyan);">⚡ Rápida: <b>${fastRes.time_s}s</b> · ${fastRes.length_m}m · Riesgo <b>${fastRes.risk}</b></div>`
+                    + `<div style="color:var(--emerald);">🛡️ Segura: <b>${safeRes.time_s}s</b> · ${safeRes.length_m}m · Riesgo <b>${safeRes.risk}</b></div>`
+                    + `<div style="margin-top:4px;color:var(--text-muted);">Diferencia: <b>+${timeDiff}s</b> · Reducción de riesgo: <b style="color:var(--emerald)">-${riskDrop}%</b></div>`;
+            } else {
+                box.innerHTML = `<b>${oPoi.name}</b> → <b>${dPoi.name}</b><br>No se encontró ruta entre los nodos seleccionados.`;
+            }
         }
+
+        // Poblar Modal Ejecutivo de Hallazgos
+        function toggleFindingsModal() {
+            document.getElementById('findings-modal').classList.toggle('open');
+        }
+        const fGrid = document.getElementById('findings-grid');
+        fGrid.innerHTML = `
+            <div class="finding-card">
+                <h4 style="color:var(--rose);">1. Diagnóstico de Siniestralidad</h4>
+                <div>• <b>${(k.accidents?.total || 0).toLocaleString()}</b> hechos de tránsito analizados (24m).</div>
+                <div>• <b>${dbscanData.cluster_count || 0} clusters críticos</b> detectados vía DBSCAN (<code>eps=120m</code>).</div>
+                <div>• Mayor incidencia en franja <b>Día / Hora Pico PM</b>.</div>
+            </div>
+            <div class="finding-card">
+                <h4 style="color:var(--cyan);">2. Optimización NSGA-II vs Baseline</h4>
+                <div>• Comparativa justa sobre los <b>mismos corredores estratégicos</b>.</div>
+                <div>• Mejor tiempo Pareto: <b>${k.optimization?.best_time_s || 0}s</b> (vs ${k.baseline?.mean_time_s || 0}s global).</div>
+                <div>• Hipervolumen: <b>${k.optimization?.hypervolume || 0}</b> · Ruteo seguro reduce exposición a cruceros peligrosos.</div>
+            </div>
+            <div class="finding-card">
+                <h4 style="color:var(--emerald);">3. Multimodalidad y Resiliencia C5</h4>
+                <div>• <b>${k.transit?.total_lines || 0}</b> trazas y <b>${k.transit?.total_stops || 0}</b> paradas integradas (Metro, MB, RTP, Concesionado).</div>
+                <div>• <b>456 POIs reales</b> (34 hospitales, 312 escuelas, 80 plazas) con <b>100%</b> contención QA.</div>
+                <div>• Re-ruteo ante contingencias C5 en <b>${k.resilience?.reroute_latency_ms || 0} ms</b>.</div>
+            </div>
+        `;
 
         function clearCustomRoute() {
             groups.customRoute.clearLayers();

@@ -27,9 +27,18 @@ def run_simulation_pipeline() -> tuple[Path, Path]:
     baseline_df = pd.read_parquet(base_file)
     pareto_df = pd.read_parquet(pareto_file)
 
-    # Filtrar conjunto manejable para la evaluación
-    baseline_sample = baseline_df.head(25).to_dict(orient="records")
-    pareto_sample = pareto_df[pareto_df["solution_index"] == 0].to_dict(orient="records")
+    # Filtrar exactamente los mismos pares OD para comparación justa ("peras con peras")
+    pareto_sub = pareto_df[pareto_df["solution_index"] == 0]
+    pareto_pairs = set(zip(pareto_sub["origin_id"], pareto_sub["destination_id"]))
+    matched_base = baseline_df[
+        baseline_df.apply(lambda r: (r["origin_id"], r["destination_id"]) in pareto_pairs, axis=1)
+    ]
+    baseline_sample = (
+        matched_base.to_dict(orient="records")
+        if not matched_base.empty
+        else baseline_df.head(len(pareto_sub)).to_dict(orient="records")
+    )
+    pareto_sample = pareto_sub.to_dict(orient="records")
 
     print("[4/4] Inyectando contingencias (Cierre Eje Central, Congestión C5, Colapso Zapata)...")
     json_path = settings.outputs_dir / "resilience_metrics.json"
@@ -52,7 +61,7 @@ def run_simulation_pipeline() -> tuple[Path, Path]:
     )
     print(f"    Robustez Baseline: {summary.baseline_global_robustness:.4f}")
     print(
-        f"    Robustez Pareto:   {summary.pareto_global_robustness:.4f} (+{summary.resilience_gain_percent:.1f}%)"
+        f"    Robustez Pareto:   {summary.pareto_global_robustness:.4f} ({summary.resilience_gain_percent:+.1f}%)"
     )
 
     return json_path, parquet_path

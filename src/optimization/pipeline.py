@@ -1,14 +1,17 @@
 """Pipeline de ejecución de la Fase 3: Optimización Bioinspirada (NSGA-II)."""
 
-import json
 from pathlib import Path
 
 from config.settings import settings
 from src.demand.generators import load_pois_with_metric_coords, snap_pois_to_network
 from src.demand.od_matrix import generate_od_pairs
 from src.graph.cleaner import load_road_network
+from src.graph.routing_baseline import compute_baseline_routes
+from src.ingestion.accidents import enrich_graph_with_accident_risk
 from src.optimization.benchmarks import build_optimization_summary
+from src.optimization.fitness import evaluate_individual_fitness
 from src.optimization.nsga2 import NSGA2Solver
+from src.optimization.schemas import RouteChromosome
 
 
 def run_optimization_pipeline(
@@ -31,6 +34,7 @@ def run_optimization_pipeline(
     graph_path = settings.processed_data_dir / "road_network_lscc.graphml"
     print(f"[1/4] Cargando grafo vial LSCC desde {graph_path}...")
     G = load_road_network(graph_path)
+    G, _ = enrich_graph_with_accident_risk(G)
 
     print("[2/4] Preparando POIs y matriz de pares estratégicos...")
     pois = load_pois_with_metric_coords()
@@ -58,12 +62,25 @@ def run_optimization_pipeline(
         f"      Evolución culminada: {len(pareto_front)} soluciones no dominadas en el Frente de Pareto."
     )
 
-    print("[4/4] Construyendo benchmark comparativo contra el Baseline de Fase 2...")
-    baseline_stats = {}
-    base_file = settings.outputs_dir / "baseline_metrics.json"
-    if base_file.exists():
-        with open(base_file, encoding="utf-8") as f:
-            baseline_stats = json.load(f)
+    print("[4/4] Construyendo benchmark comparativo justo (mismos corredores) contra A*...")
+    base_routes, base_summary = compute_baseline_routes(G, od_pairs, algorithm="astar")
+    base_chromosomes = [
+        RouteChromosome(
+            route_id=f"BASE_{i}",
+            origin_id=r.origin_id,
+            destination_id=r.destination_id,
+            node_sequence=r.path,
+            length_m=r.length_m,
+            travel_time_s=r.travel_time_s,
+        )
+        for i, r in enumerate(base_routes)
+    ]
+    od_volumes = {(p.origin_id, p.destination_id): p.trip_volume for p in od_pairs}
+    base_fit = evaluate_individual_fitness(G, base_chromosomes, pois, od_volumes)
+    baseline_stats = {
+        "mean_travel_time_s": base_summary.mean_travel_time_s,
+        "baseline_coverage_percent": round(base_fit.f3_coverage_ratio * 100.0, 2),
+    }
 
     json_path = settings.outputs_dir / "optimization_summary.json"
     parquet_path = settings.outputs_dir / "pareto_routes.parquet"

@@ -16,6 +16,8 @@ from shapely.geometry import LineString, MultiLineString, Polygon
 from config.settings import settings
 from src.demand.generators import load_pois_with_metric_coords, snap_pois_to_network
 from src.graph.cleaner import load_road_network
+from src.graph.multimodal import build_multimodal_layer
+from src.ingestion.accident_analytics import classify_time_band
 from src.ingestion.accidents import enrich_graph_with_accident_risk
 from src.ingestion.boundary import get_benito_juarez_polygon
 from src.simulation.scenarios import get_all_scenarios
@@ -154,19 +156,81 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
                 }
             )
 
-    # 5. Accidentes Viales (Heatmap + Aristas de Alto Riesgo)
-    accidents_heat: list[list[float]] = []
+    # 5. Accidentes Viales (Heatmap con franja horaria + Aristas de Alto Riesgo)
+    accidents_heat: list[list[float | int]] = []
+    band_to_code = {"pico_am": 0, "dia": 1, "pico_pm": 2, "noche": 3}
     acc_path = settings.processed_data_dir / "accidents_bj.geoparquet"
     if acc_path.exists():
         gdf_acc = gpd.read_parquet(acc_path)
         for _, row in gdf_acc.iterrows():
+            try:
+                h = int(str(row.get("hora_evento", "12:00")).split(":")[0])
+            except (ValueError, IndexError):
+                h = 12
+            band_code = band_to_code[classify_time_band(h if 0 <= h <= 23 else 12)]
             accidents_heat.append(
                 [
                     round(float(row["latitud"]), 5),
                     round(float(row["longitud"]), 5),
                     round(float(row.get("severity_weight", 1.0)), 2),
+                    band_code,
                 ]
             )
+
+    # 5B. Grafo compacto para Ruteador A* en vivo en el navegador (Rápida, Segura y Multimodal)
+    ordered_nodes = list(G.nodes())
+    node_to_idx: dict[str, int] = {str(nid): idx for idx, nid in enumerate(ordered_nodes)}
+    rg_nodes = [
+        [round(node_coords[nid][0], 5), round(node_coords[nid][1], 5)] for nid in ordered_nodes
+    ]
+    rg_edges = []
+    for u, v, d in G.edges(data=True):
+        su, sv = str(u), str(v)
+        if su in node_to_idx and sv in node_to_idx:
+            rg_edges.append(
+                [
+                    node_to_idx[su],
+                    node_to_idx[sv],
+                    round(float(d.get("travel_time_s", 10.0)), 1),
+                    round(float(d.get("safe_travel_time_s", d.get("travel_time_s", 10.0))), 1),
+                    round(float(d.get("length_m", 10.0)), 1),
+                    round(float(d.get("risk_score", 0.0)), 2),
+                    0,  # 0 = street
+                ]
+            )
+
+    # Añadir nodos y aristas multimodales (Metro=1, Metrobús=2, RTP=3, Transfer=4)
+    mm_layer = build_multimodal_layer(G)
+    mode_to_code = {"street": 0, "metro": 1, "metrobus": 2, "rtp": 3, "transfer": 4}
+    node_labels: dict[str, str] = {}
+    for tn in mm_layer["transit_nodes"]:
+        idx = len(rg_nodes)
+        node_to_idx[str(tn["id"])] = idx
+        rg_nodes.append([tn["lat"], tn["lon"]])
+        node_labels[str(idx)] = f"{str(tn['mode']).upper()} {tn['name']}"
+
+    for te in mm_layer["transit_edges"]:
+        su, sv = str(te["u"]), str(te["v"])
+        if su in node_to_idx and sv in node_to_idx:
+            t_s = float(te["time_s"])
+            rg_edges.append(
+                [
+                    node_to_idx[su],
+                    node_to_idx[sv],
+                    t_s,
+                    t_s,
+                    float(te["length_m"]),
+                    0.0,
+                    mode_to_code.get(str(te["mode"]), 4),
+                ]
+            )
+
+    routing_graph = {
+        "node_map": {str(nid): node_to_idx[str(nid)] for nid in ordered_nodes},
+        "node_labels": node_labels,
+        "nodes": rg_nodes,
+        "edges": rg_edges,
+    }
 
     high_risk_edges: list[dict[str, Any]] = []
     risk_candidates = []
@@ -235,11 +299,24 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
             avg_time = sum(r["travel_time_s"] for r in routes) / len(routes) if routes else 0.0
             tot_len = sum(r["length_m"] for r in routes) / 1000.0 if routes else 0.0
 
+            # Calcular exposición al riesgo promedio sobre las aristas de la solución
+            sol_risk = 0.0
+            for _, r in sub_df.iterrows():
+                p_nodes = r["path_nodes"]
+                for i in range(len(p_nodes) - 1):
+                    u_n, v_n = p_nodes[i], p_nodes[i + 1]
+                    if G.has_edge(u_n, v_n):
+                        best_e = min(
+                            G[u_n][v_n].values(), key=lambda d: d.get("travel_time_s", 9999.0)
+                        )
+                        sol_risk += float(best_e.get("risk_score", 0.0))
+
             pareto_solutions[int(s_idx)] = {
                 "solution_index": int(s_idx),
                 "solution_id": f"sol_{s_idx}",
                 "avg_travel_time_s": round(avg_time, 1),
                 "total_length_km": round(tot_len, 1),
+                "total_risk_score": round(sol_risk, 1),
                 "route_count": len(routes),
                 "routes": routes,
             }
@@ -273,6 +350,7 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
     trn_sum = _read_json_if_exists(settings.processed_data_dir / "transit_summary.json")
     poi_sum = _read_json_if_exists(settings.processed_data_dir / "pois_summary.json")
     qa_sum = _read_json_if_exists(settings.processed_data_dir / "qa_report.json")
+    acc_analytics = _read_json_if_exists(settings.processed_data_dir / "accident_analytics.json")
 
     kpis = {
         "network": {
@@ -321,7 +399,9 @@ def compile_spa_data(output_json_path: Path | None = None) -> dict[str, Any]:
         "transit_lines": transit_lines_data,
         "transit_stops": transit_stops_data,
         "accidents_heat": accidents_heat,
+        "accident_analytics": acc_analytics,
         "high_risk_edges": high_risk_edges,
+        "routing_graph": routing_graph,
         "baseline_routes": baseline_routes,
         "pareto_solutions": pareto_solutions,
         "contingencies": contingencies_data,

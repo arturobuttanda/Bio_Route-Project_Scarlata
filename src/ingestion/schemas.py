@@ -115,3 +115,33 @@ class QAReportSchema(BaseModel):
     accidents_containment_pct: float = 0.0
     landmark_checks: list[QALandmarkCheck] = Field(default_factory=list)
     passed: bool = False
+
+
+class AccidentClusterSchema(BaseModel):
+    """Cluster espacial crítico descubierto mediante DBSCAN en EPSG:32614."""
+
+    cluster_id: int
+    label: str
+    lat: float
+    lon: float
+    radius_m: float
+    accident_count: int
+    injured_total: int
+    fatalities_total: int
+    severity_sum: float
+    dominant_type: str
+    peak_hour: int
+
+
+class AccidentAnalyticsSchema(BaseModel):
+    """Analítica espacial (DBSCAN) y temporal (24h) de siniestralidad vial."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    total_analyzed: int = 0
+    eps_meters: float = 120.0
+    min_samples: int = 15
+    cluster_count: int = 0
+    clusters: list[AccidentClusterSchema] = Field(default_factory=list)
+    hourly_counts: list[int] = Field(default_factory=lambda: [0] * 24)
+    band_counts: dict[str, int] = Field(default_factory=dict)

@@ -6,8 +6,10 @@ from shapely.geometry import Point
 from src.demand.schemas import POIKind, PointOfInterest
 from src.graph.builder import generate_synthetic_benito_juarez_grid
 from src.graph.cleaner import extract_lscc, project_node_coordinates
+from src.graph.multimodal import build_multimodal_layer
 from src.graph.routing_baseline import compute_baseline_routes
 from src.graph.weights import assign_edge_weights
+from src.ingestion.accident_analytics import classify_time_band, run_accident_analytics
 from src.ingestion.accidents import enrich_graph_with_accident_risk
 from src.ingestion.schemas import (
     AccidentsSummarySchema,
@@ -98,3 +100,69 @@ def test_enrich_graph_with_accident_risk_and_safe_routing():
     )
     assert len(routes) == 1
     assert summary.unreachable_pairs == 0
+
+
+def test_dbscan_accident_analytics(tmp_path):
+    """Verifica el clustering espacial DBSCAN y el perfil horario 24h."""
+    rows = []
+    for i in range(18):
+        rows.append(
+            {
+                "folio": f"F_{i}",
+                "latitud": 19.375 + i * 0.00005,
+                "longitud": -99.165 + i * 0.00005,
+                "colonia": "Del Valle",
+                "tipo_evento": "Choque",
+                "hora_evento": "08:30" if i < 10 else "19:15",
+                "personas_lesionadas": 1,
+                "personas_fallecidas": 0,
+                "severity_weight": 1.5,
+                "geometry": Point(-99.165 + i * 0.00005, 19.375 + i * 0.00005),
+            }
+        )
+    gdf = gpd.GeoDataFrame(rows, crs="EPSG:4326").to_crs("EPSG:32614")
+    res = run_accident_analytics(
+        accidents_gdf=gdf,
+        eps_meters=120.0,
+        min_samples=15,
+        output_json=tmp_path / "acc_analytics.json",
+    )
+    assert res.cluster_count == 1
+    assert res.clusters[0].accident_count == 18
+    assert res.band_counts["pico_am"] == 10
+    assert res.band_counts["pico_pm"] == 8
+    assert classify_time_band(23) == "noche"
+
+
+def test_multimodal_layer_builder():
+    """Verifica que las paradas de Metro/Metrobús se conecten al grafo LSCC."""
+    G = extract_lscc(
+        project_node_coordinates(assign_edge_weights(generate_synthetic_benito_juarez_grid()))
+    )
+    nodes = list(G.nodes(data=True))
+    p1 = nodes[0][1]
+    p2 = nodes[1][1]
+    stops_gdf = gpd.GeoDataFrame(
+        [
+            {
+                "stop_id": "S1",
+                "stop_name": "Estación A",
+                "mode": "metro",
+                "route_name": "L3",
+                "geometry": Point(p1["x"], p1["y"]),
+            },
+            {
+                "stop_id": "S2",
+                "stop_name": "Estación B",
+                "mode": "metro",
+                "route_name": "L3",
+                "geometry": Point(p2["x"], p2["y"]),
+            },
+        ],
+        crs="EPSG:4326",
+    ).to_crs("EPSG:32614")
+
+    mm = build_multimodal_layer(G, transit_stops=stops_gdf)
+    assert len(mm["transit_nodes"]) == 2
+    # 2 nodos * 2 aristas transfer + 2 aristas troncales (bidireccional) = 6 aristas
+    assert len(mm["transit_edges"]) >= 4
